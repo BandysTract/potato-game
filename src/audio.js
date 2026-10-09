@@ -145,6 +145,33 @@ const DEER = [
   ['D', [[71, 1], [69, .5], [67, .5], [66, 1]], [57, 54]],
   ['G', [[67, 3]], [59, 55]],
 ];
+// A low, unhurried melody for the badger, with a rising middle and a soft return.
+const BADGER = [
+  ['C', [[60, 1.5], [64, .5], [67, .5], [64, .5]], [55, 60]],
+  ['Am', [[62, 1], [60, 1], [57, 1]], [52, 57]],
+  ['G', [[59, 1.5], [62, .5], [67, 1]], [55, 59]],
+  ['C', [[64, 2], [60, 1]], [55, 60]],
+  ['Em', [[64, 1], [67, 1], [71, 1]], [55, 59]],
+  ['Bm', [[69, 1.5], [66, .5], [62, 1]], [54, 59]],
+  ['Am', [[64, 1], [62, .5], [60, .5], [57, 1]], [52, 60]],
+  ['D', [[62, 2], [66, 1]], [54, 57]],
+  ['G', [[67, 1.5], [64, .5], [62, 1]], [55, 59]],
+  ['C', [[64, 1], [67, .5], [72, .5], [71, 1]], [55, 60]],
+  ['Am', [[69, 1], [64, 1], [60, 1]], [57, 60]],
+  ['G', [[62, 2], [59, 1]], [55, 62]],
+  ['Em', [[64, 1.5], [67, .5], [69, 1]], [55, 59]],
+  ['Am', [[72, 1], [71, .5], [69, .5], [64, 1]], [57, 60]],
+  ['Bm', [[66, 1.5], [62, .5], [59, 1]], [54, 62]],
+  ['D7', [[62, 1], [66, 1], [69, 1]], [54, 60]],
+  ['G', [[71, 1], [67, .5], [64, .5], [62, 1]], [59, 62]],
+  ['C', [[67, 1.5], [64, .5], [60, 1]], [55, 64]],
+  ['Am', [[57, 1], [60, 1], [64, 1]], [52, 60]],
+  ['G', [[62, 2], [59, 1]], [55, 59]],
+  ['C', [[60, 1.5], [64, .5], [67, .5], [64, .5]], [55, 60]],
+  ['Am', [[62, 1], [60, 1], [57, 1]], [52, 57]],
+  ['G', [[59, 1], [62, .5], [64, .5], [62, 1]], [55, 59]],
+  ['C', [[60, 3]], [55, 52]],
+];
 
 function compose(measures, tempo, detailed = false) {
   const events = measures.flatMap(([harmony, melody, counter], measure) => {
@@ -173,9 +200,20 @@ const WALK = compose(MEASURES, 92);
 const TITLE_SCORE = compose(TITLE, 78, true);
 TITLE_SCORE.level = .72;
 TITLE_SCORE.events = TITLE_SCORE.events.map((event) => ({ ...event, part: event.part === 'flute' ? 'horn' : event.part === 'strings' ? 'pad' : event.part }));
-const THEMES = { fox: compose(FOX, 108, true), owl: compose(OWL, 72, true), deer: compose(DEER, 84, true) };
+const THEMES = { fox: compose(FOX, 108, true), owl: compose(OWL, 72, true), deer: compose(DEER, 84, true), badger: compose(BADGER, 76, true) };
 const LEVELS = { flute: .065, horn: .065, bass: .085, pluck: .022, reed: .024, strings: .009, pad: .009 };
 const frequency = (note) => 440 * 2 ** ((note - 69) / 12);
+// Mouth resonances move from a rounded “oo” into an open “ah” and back.
+const VOWELS = [[430, 980, 2450, 3300], [670, 1250, 2650, 3500], [780, 1400, 2850, 3600], [490, 1100, 2500, 3350]];
+const VOICE_LEVELS = [.23, .19, .22, .17];
+const BREATH_LEVELS = [.025, .02, .018, .05];
+// [end of the held phrase, pitch, vowel]. Each song follows the game's hold
+// progress, so a stalled animation cannot skip a note or end the singer early.
+const FAIRY_SONGS = {
+  'fairy-birch': [[.30, 67, 0], [.44, 71, 1], [.68, 69, 2], [1, 67, 3]],
+  'fairy-ridge': [[.12, 72, 0], [.24, 76, 1], [.40, 76, 2], [.62, 79, 3], [.76, 74, 1], [1, 72, 0]],
+  'fairy-stream': [[.18, 69, 0], [.34, 72, 1], [.52, 74, 2], [.70, 72, 1], [1, 69, 3]],
+};
 
 export function createAudio(onEnabledChange = () => {}) {
   let context;
@@ -183,7 +221,8 @@ export function createAudio(onEnabledChange = () => {}) {
   let music;
   let fluteWave;
   let reedWave;
-  let vowelWave;
+  let glottalWave;
+  let breathBuffer;
   let hornWave;
   let stringWave;
   let enabled = false;
@@ -279,46 +318,76 @@ export function createAudio(onEnabledChange = () => {}) {
     sources.forEach((oscillator) => { oscillator.start(start); oscillator.stop(start + duration + 0.02); });
   }
 
-  function startSinger(midi) {
+  function startSinger(midi, syllable) {
     if (voices.size > 60) return;
     const now = context.currentTime;
     const gain = context.createGain();
-    const formants = [800, 1200].map((value) => {
+    const throat = context.createBiquadFilter();
+    throat.type = 'lowpass';
+    throat.frequency.value = 4200;
+    throat.Q.value = .7;
+    const resonances = [];
+    const formants = VOWELS[syllable].map((value, index) => {
       const filter = context.createBiquadFilter();
       filter.type = 'bandpass';
       filter.frequency.value = value;
-      filter.Q.value = 2.5;
-      filter.connect(gain);
+      filter.Q.value = [4, 6, 8, 9][index];
+      const resonance = context.createGain();
+      resonance.gain.value = [1, .8, .45, .18][index];
+      throat.connect(filter);
+      filter.connect(resonance);
+      resonance.connect(gain);
+      resonances.push(resonance);
       return filter;
     });
-    const singers = [-6, 6].map((cents) => {
-      const oscillator = context.createOscillator();
-      oscillator.setPeriodicWave(vowelWave);
-      oscillator.frequency.value = frequency(midi);
-      oscillator.detune.value = cents;
-      formants.forEach((filter) => oscillator.connect(filter));
-      return oscillator;
-    });
-    const shimmer = context.createOscillator();
-    shimmer.frequency.value = frequency(midi + 12);
-    const shimmerGain = context.createGain();
-    shimmerGain.gain.value = 0.09;
-    shimmer.connect(shimmerGain);
-    shimmerGain.connect(gain);
+    // One harmonic-rich vocal-fold source keeps the sound intimate and solo.
+    const voice = context.createOscillator();
+    voice.setPeriodicWave(glottalWave);
+    voice.frequency.setValueAtTime(frequency(midi - .35), now);
+    voice.frequency.exponentialRampToValueAtTime(frequency(midi), now + .11);
+    voice.detune.setValueAtTime(-3, now);
+    voice.detune.linearRampToValueAtTime(2, now + .32);
+    voice.detune.linearRampToValueAtTime(-2, now + .93);
+    voice.detune.linearRampToValueAtTime(1, now + 1.54);
+    voice.detune.linearRampToValueAtTime(-4, now + 2.2);
+    voice.connect(throat);
+    const breath = context.createBufferSource();
+    breath.buffer = breathBuffer;
+    breath.loop = true;
+    const breathFilter = context.createBiquadFilter();
+    breathFilter.type = 'bandpass';
+    breathFilter.frequency.value = 1800;
+    breathFilter.Q.value = .8;
+    const breathGain = context.createGain();
+    breathGain.gain.setValueAtTime(.075, now);
+    breathGain.gain.linearRampToValueAtTime(BREATH_LEVELS[syllable], now + .18);
+    breath.connect(breathFilter);
+    breathFilter.connect(breathGain);
+    breathGain.connect(throat);
     const vibrato = context.createOscillator();
-    vibrato.frequency.value = 5.2;
+    vibrato.frequency.setValueAtTime(5, now);
+    vibrato.frequency.linearRampToValueAtTime(5.35, now + 2.2);
     const depth = context.createGain();
-    depth.gain.value = 5;
+    depth.gain.setValueAtTime(0, now);
+    depth.gain.setValueAtTime(0, now + .22);
+    depth.gain.linearRampToValueAtTime(14, now + .6);
+    depth.gain.linearRampToValueAtTime(10, now + 2.2);
     vibrato.connect(depth);
-    [...singers, shimmer].forEach((oscillator) => depth.connect(oscillator.detune));
+    depth.connect(voice.detune);
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.095, now + 0.12);
+    gain.gain.linearRampToValueAtTime(.13, now + .055);
+    gain.gain.linearRampToValueAtTime(VOICE_LEVELS[syllable], now + .18);
     gain.connect(master);
-    const sources = [...singers, shimmer, vibrato];
-    singer = track(sources, [...sources, ...formants, shimmerGain, depth, gain], gain);
-    singer.pitches = [...singers, shimmer];
+    const sources = [voice, breath, vibrato];
+    singer = track(sources, [...sources, throat, ...formants, ...resonances, breathFilter, breathGain, depth, gain], gain);
+    singer.pitch = voice;
+    singer.formants = formants;
+    singer.breathGain = breathGain;
     singer.midi = midi;
-    sources.forEach((source) => { source.start(now); source.stop(now + 2.5); });
+    singer.syllable = syllable;
+    // The game clamps stalled frames, so only its hold completion or cancellation
+    // can end the phrase. The same bounded graph sustains between game updates.
+    sources.forEach((source) => source.start(now));
   }
 
   return {
@@ -342,7 +411,14 @@ export function createAudio(onEnabledChange = () => {}) {
         const wave = (harmonics) => context.createPeriodicWave(new Float32Array(harmonics.length), new Float32Array(harmonics));
         fluteWave = wave([0, 1, 0.12, 0.22, 0.025, 0.06]);
         reedWave = wave([0, 1, .3, .08, .1, .03, .04, .015]);
-        vowelWave = wave([0, 1, 0.45, 0.28, 0.15, 0.08, 0.05]);
+        glottalWave = wave(Array.from({ length: 33 }, (_, harmonic) => harmonic ? 1 / harmonic ** 1.5 : 0));
+        breathBuffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
+        const breath = breathBuffer.getChannelData(0);
+        let seed = 17;
+        for (let sample = 0; sample < breath.length; sample++) {
+          seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+          breath[sample] = seed / 2147483648 - 1;
+        }
         hornWave = wave([0, 1, .17, .12, .07, .04, .025, .015, .008]);
         stringWave = wave([0, 1, .16, .11, .06, .025, .014, .008, .004, .002]);
         context.onstatechange = syncEnabled;
@@ -394,13 +470,21 @@ export function createAudio(onEnabledChange = () => {}) {
           scoreStart += beats * beat;
         }
       }
-      const singing = game.phase === 'playing' && game.holdProgress > 0;
+      const song = FAIRY_SONGS[game.activeFairy];
+      const singing = Boolean(song && game.phase === 'playing' && game.scene !== 'house' && game.holdProgress > 0);
       if (singing) {
-        const midi = [67, 69, 71, 74][Math.min(3, Math.floor(game.holdProgress * 4))];
-        if (!singer) startSinger(midi);
-        else if (singer.midi !== midi) {
-          singer.pitches.forEach((oscillator, index) => oscillator.frequency.setTargetAtTime(frequency(midi + (index === 2 ? 12 : 0)), now, 0.04));
+        const [, midi, syllable] = song.find(([end]) => game.holdProgress < end) || song.at(-1);
+        if (!singer) startSinger(midi, syllable);
+        else if (singer.midi !== midi || singer.syllable !== syllable) {
+          singer.pitch.frequency.cancelScheduledValues(now);
+          singer.pitch.frequency.setTargetAtTime(frequency(midi), now, .045);
+          singer.formants.forEach((filter, index) => filter.frequency.setTargetAtTime(VOWELS[syllable][index], now, .075));
+          singer.gain.gain.cancelScheduledValues(now);
+          singer.gain.gain.setTargetAtTime(VOICE_LEVELS[syllable], now, .08);
+          singer.breathGain.gain.cancelScheduledValues(now);
+          singer.breathGain.gain.setTargetAtTime(BREATH_LEVELS[syllable], now, .08);
           singer.midi = midi;
+          singer.syllable = syllable;
         }
       } else if (singer) {
         retire(singer);

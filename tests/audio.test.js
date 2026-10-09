@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAudio } from '../src/audio.js';
-import { createGame, startGame, finishConversation, setLanguage } from '../src/game.js';
+import { createGame, startGame, finishConversation, setLanguage, step } from '../src/game.js';
+import { FAIRIES } from '../src/data.js';
 
 class Param {
   value = 0;
@@ -18,16 +19,20 @@ class Node {
   connect(node) { this.connections.push(node); }
   disconnect() { this.disconnected = true; }
 }
-class Oscillator extends Node {
+class ScheduledSource extends Node {
+  start(time) { this.startTime = time; }
+  stop(time) { this.stopTime = time; }
+}
+class Oscillator extends ScheduledSource {
   frequency = new Param();
   detune = new Param();
   type = 'sine';
   setPeriodicWave(wave) { this.wave = wave; }
-  start(time) { this.startTime = time; }
-  stop(time) { this.stopTime = time; }
 }
+class BufferSource extends ScheduledSource {}
 class FakeContext {
   currentTime = 0;
+  sampleRate = 24000;
   state = 'suspended';
   destination = new Node();
   nodes = [];
@@ -35,6 +40,11 @@ class FakeContext {
   constructor() { FakeContext.latest = this; }
   createGain() { const node = new Node(); node.gain = new Param(); this.nodes.push(node); return node; }
   createOscillator() { const node = new Oscillator(); this.nodes.push(node); return node; }
+  createBufferSource() { const node = new BufferSource(); this.nodes.push(node); return node; }
+  createBuffer(channels, length, sampleRate) {
+    const data = Array.from({ length: channels }, () => new Float32Array(length));
+    return { length, sampleRate, getChannelData: (channel) => data[channel] };
+  }
   createBiquadFilter() { const node = new Node(); node.frequency = new Param(); node.Q = new Param(); this.nodes.push(node); return node; }
   createPeriodicWave(real, imaginary) { return { real, imaginary }; }
   async resume() { this.state = 'running'; }
@@ -45,11 +55,16 @@ class FakeContext {
       if (!source.ended && source.stopTime <= time) { source.ended = true; source.onended?.(); }
     }
   }
-  sources() { return this.nodes.filter((node) => node instanceof Oscillator); }
+  sources() { return this.nodes.filter((node) => node instanceof ScheduledSource); }
   active() { return this.sources().filter((source) => !source.ended); }
 }
 const hz = (midi) => 440 * 2 ** ((midi - 69) / 12);
-const gameState = () => ({ holdProgress: 0, phase: 'playing' });
+const gameState = () => ({ holdProgress: 0, phase: 'playing', activeFairy: 'fairy-birch' });
+const fairySongs = [
+  { id: 'fairy-birch', pitches: [67, 71, 69, 67], starts: [0, .60, .88, 1.36] },
+  { id: 'fairy-ridge', pitches: [72, 76, 76, 79, 74, 72], starts: [0, .24, .48, .80, 1.24, 1.52] },
+  { id: 'fairy-stream', pitches: [69, 72, 74, 72, 69], starts: [0, .36, .68, 1.04, 1.40] },
+];
 
 async function withAudio(run, Context = FakeContext) {
   const previous = globalThis.window;
@@ -89,7 +104,8 @@ test('the original melody has a recurring motif over a three-beat bass-and-chord
   });
 });
 
-test('singing sustains a distinct vowel layer and release cancels every singer source', async () => {
+test('singing uses one breathing voice with moving vowels, a pitch onset, and delayed vibrato', async () => {
+  // Rejects the old detuned choir and octave shimmer, and a static organ envelope.
   await withAudio(async (audio, context) => {
     const game = gameState();
     audio.tick(game, 0);
@@ -97,15 +113,37 @@ test('singing sustains a distinct vowel layer and release cancels every singer s
     game.holdProgress = 0.025;
     audio.tick(game, 1 / 60);
     const singers = context.sources().slice(before);
-    assert.equal(singers.length, 4, 'Two vowel voices, octave shimmer, and vibrato must start.');
-    assert.equal(context.nodes.filter((node) => node.type === 'bandpass').length, 2);
+    const folds = singers.filter((source) => source.wave);
+    assert.equal(folds.length, 1, 'A solo vocal source must replace the detuned choir and octave shimmer.');
+    assert.equal(folds[0].wave.imaginary.length, 33, 'The mouth filters need enough source harmonics to shape a vowel.');
+    const breath = singers.find((source) => source instanceof BufferSource);
+    assert.ok(breath?.loop, 'A quiet, continuous breath source must share the vocal envelope.');
+    assert.equal(breath.buffer.length, context.sampleRate * 2, 'The breath buffer stays bounded across repeated singing.');
+    assert.ok(breath.buffer.getChannelData(0).some((value) => value !== 0));
+    assert.equal(singers.length, 3, 'One vocal source, breath, and vibrato must start.');
+    assert.ok(singers.every((source) => source.stopTime === undefined), 'A held singer must not have a fixed audio-clock expiry.');
+    const formants = context.nodes.filter((node) => node.type === 'bandpass' && node.Q.value > 1);
+    assert.equal(formants.length, 4);
+    assert.deepEqual(formants.map((node) => node.frequency.value), [430, 980, 2450, 3300]);
+    const onset = folds[0].frequency.events;
+    assert.ok(onset[0][1] < hz(67), 'The onset must settle into pitch rather than switching on at a fixed pitch.');
+    assert.deepEqual(onset[1], ['exponential', hz(67), .11]);
+    const vibrato = singers.find((source) => source instanceof Oscillator && !source.wave);
+    const depth = vibrato.connections[0].gain.events;
+    assert.deepEqual(depth.slice(0, 2), [['value', 0, 0], ['value', 0, .22]], 'Vibrato must wait for the onset to settle.');
+    assert.ok(depth.some(([kind, value, time]) => kind === 'linear' && value > 5 && time >= .5));
+    const envelope = formants[0].connections[0].connections[0].gain.events;
+    assert.ok(envelope.some(([kind, value, time]) => kind === 'linear' && value > .1 && time <= .2), 'The voice needs a shaped onset.');
+    assert.equal(envelope.some(([kind, value]) => kind === 'exponential' && value < .001), false, 'The held phrase must sustain until the game cancels it.');
     const music = context.nodes[1];
     assert.equal(music.gain.events.at(-1)[1], 0.38, 'The accompaniment lowers during the song.');
     context.advance(0.2);
     game.holdProgress = 0.6;
     audio.tick(game, 1 / 60);
-    assert.equal(context.sources().length, before + 4, 'Pitch changes must reuse sustained voices.');
-    assert.equal(singers[0].frequency.events.at(-1)[1], hz(71));
+    assert.equal(context.sources().length, before + 3, 'Pitch changes must reuse the same solo voice.');
+    assert.equal(folds[0].frequency.events.at(-1)[1], hz(69));
+    assert.deepEqual(formants.map((node) => node.frequency.events.at(-1)[1]), [780, 1400, 2850, 3600], 'A higher note must also change the mouth shape.');
+    assert.deepEqual(envelope.at(-1), ['target', .22, .2, .08], 'Phrase expression must follow the game’s note progress.');
     game.holdProgress = 0;
     audio.tick(game, 1 / 60);
     singers.forEach((source) => assert.ok(source.stopTime <= context.currentTime + 0.041, 'Released singing must stop within its short fade.'));
@@ -114,6 +152,179 @@ test('singing sustains a distinct vowel layer and release cancels every singer s
     assert.equal(music.gain.events.at(-1)[1], 1);
   });
 });
+
+test('each real fairy delivers her own pitches, rhythm, and phrase contour through the game hold', async () => {
+  // Rejects one shared song, a transposed copy, and routing by list position or a stale fairy ID.
+  const delivered = [];
+  for (const expected of fairySongs) {
+    const fairy = FAIRIES.find(({ id }) => id === expected.id);
+    assert.ok(fairy, 'The test must reach an actual fairy from the game’s target inventory.');
+    await withAudio(async (audio, context) => {
+      const game = startGame(createGame());
+      Object.assign(game.player, { x: fairy.x, z: fairy.z });
+      audio.tick(game);
+      let fold;
+      for (let frame = 1; frame <= 120; frame++) {
+        context.advance(frame / 60);
+        step(game, { interact: true }, 1 / 60);
+        audio.tick(game);
+        if (game.holdProgress > 0) assert.equal(game.activeFairy, fairy.id, 'The producer must select the fairy from her real location.');
+        fold ||= context.sources().find((source) => source.wave?.imaginary.length === 33);
+      }
+      assert.deepEqual(game.tears, [fairy.id], 'The real two-second hold must award the selected fairy’s tear.');
+      assert.ok(fold, 'The selected fairy must actually start a singer.');
+      const changes = fold.frequency.events.filter(([kind]) => kind === 'target');
+      const pitches = [fold.frequency.events.find(([kind]) => kind === 'exponential')[1], ...changes.map((event) => event[1])]
+        .map((value) => Math.round(69 + 12 * Math.log2(value / 440)));
+      const starts = [0, ...changes.map((event) => event[2])];
+      assert.deepEqual(pitches, expected.pitches, `${fairy.name} must sing her intended melody, including repeated notes.`);
+      assert.equal(starts.length, expected.starts.length, 'Every syllable boundary must reach the voice, even at a repeated pitch.');
+      starts.forEach((time, index) => assert.ok(Math.abs(time - expected.starts[index]) < .018,
+        `${fairy.name} note ${index + 1} must start near ${expected.starts[index]} seconds, received ${time}.`));
+      const formants = context.nodes.filter((node) => node.type === 'bandpass' && node.Q.value > 1);
+      assert.equal(formants.length, 4, 'A full fairy song must reuse one bounded mouth graph.');
+      assert.equal(formants[0].frequency.events.length, pitches.length - 1, 'Every new syllable must also move the mouth shape.');
+      assert.equal(context.sources().filter((source) => source.wave?.imaginary.length === 33).length, 1, 'A song must retain the same solo voice.');
+      assert.ok(fold.stopTime <= 2.041, 'Awarding the tear must stop the held voice.');
+      delivered.push({ pitches, rhythm: [...starts.slice(1), 2].map((time, index) => Number((time - starts[index]).toFixed(2))),
+        contour: pitches.slice(1).map((pitch, index) => pitch - pitches[index]) });
+    });
+  }
+  assert.equal(new Set(delivered.map(({ pitches }) => JSON.stringify(pitches))).size, 3, 'All three delivered melodies must differ.');
+  assert.equal(new Set(delivered.map(({ rhythm }) => JSON.stringify(rhythm))).size, 3, 'All three rhythms must differ.');
+  assert.equal(new Set(delivered.map(({ contour }) => JSON.stringify(contour))).size, 3, 'Transposition alone must not count as a distinct song.');
+});
+
+test('a repeated fairy pitch still changes the vowel and breath without replacing the singer', async () => {
+  // Rejects gating all phrase expression only on pitch changes.
+  await withAudio(async (audio, context) => {
+    const fairy = FAIRIES.find(({ id }) => id === 'fairy-ridge');
+    const game = startGame(createGame());
+    Object.assign(game.player, { x: fairy.x, z: fairy.z });
+    let fold;
+    for (let frame = 1; frame <= 31; frame++) {
+      context.advance(frame / 60);
+      step(game, { interact: true }, 1 / 60);
+      audio.tick(game);
+      fold ||= context.sources().find((source) => source.wave?.imaginary.length === 33);
+    }
+    const changes = fold.frequency.events.filter(([kind]) => kind === 'target');
+    assert.deepEqual(changes.map((event) => event[1]), [hz(76), hz(76)]);
+    const formants = context.nodes.filter((node) => node.type === 'bandpass' && node.Q.value > 1);
+    assert.deepEqual(formants.map((node) => node.frequency.events.at(-1)[1]), [780, 1400, 2850, 3600]);
+    const breath = context.sources().find((source) => source instanceof BufferSource);
+    assert.equal(breath.connections[0].connections[0].gain.events.at(-1)[1], .018, 'The repeated note must receive its new breath level.');
+    assert.equal(context.sources().filter((source) => source.wave?.imaginary.length === 33).length, 1);
+  });
+});
+
+test('release, movement, house entry, scene change, and replay cancel the complete vocal graph', async () => {
+  // A stale positive hold at house entry must not leave the outdoor song running.
+  for (const interrupt of ['release', 'movement', 'house', 'intro', 'replay']) {
+    await withAudio(async (audio, context) => {
+      let game = startGame(createGame());
+      audio.tick(game);
+      const first = context.sources().length;
+      const firstNode = context.nodes.length;
+      Object.assign(game.player, { x: FAIRIES[0].x, z: FAIRIES[0].z });
+      step(game, { interact: true }, .05);
+      audio.tick(game);
+      const song = context.sources().slice(first);
+      const graph = context.nodes.slice(firstNode);
+      assert.equal(song.length, 3);
+      context.advance(.2);
+      if (interrupt === 'release') step(game, {}, .05);
+      if (interrupt === 'movement') {
+        step(game, { x: 1, sing: true }, .05);
+        assert.equal(game.player.moving, true);
+        assert.equal(game.holdProgress, 0);
+      }
+      if (interrupt === 'house') game.scene = 'house';
+      if (interrupt === 'intro') game.phase = 'intro';
+      if (interrupt === 'replay') game = gameState();
+      audio.tick(game);
+      song.forEach((source) => assert.ok(source.stopTime <= .241, `${interrupt} must stop breath, vocal folds, and vibrato within the short fade.`));
+      context.advance(.25);
+      graph.forEach((node) => assert.equal(node.disconnected, true, `${interrupt} must disconnect every vocal filter and gain.`));
+      if (interrupt === 'house') {
+        const count = context.sources().filter((source) => source.wave?.imaginary.length === 33 || source instanceof BufferSource).length;
+        audio.tick(game);
+        assert.equal(context.sources().filter((source) => source.wave?.imaginary.length === 33 || source instanceof BufferSource).length, count, 'Stale outdoor hold progress must not start singing inside the house.');
+        assert.equal(context.nodes[1].gain.events.at(-1)[1], 1);
+      }
+    });
+  }
+});
+
+test('repeated complete two-second phrases reclaim their vocal sources and filter nodes', async () => {
+  await withAudio(async (audio, context) => {
+    const game = gameState();
+    for (let phrase = 0; phrase < 12; phrase++) {
+      game.holdProgress = 0;
+      audio.tick(game);
+      const firstNode = context.nodes.length;
+      const firstSource = context.sources().length;
+      game.holdProgress = .001;
+      audio.tick(game);
+      const song = context.sources().slice(firstSource);
+      const graph = context.nodes.slice(firstNode);
+      assert.equal(song.length, 3);
+      for (let step = 1; step <= 4; step++) {
+        context.advance(phrase * 3 + step * .49);
+        game.holdProgress = step * .245;
+        audio.tick(game);
+      }
+      assert.ok(song.every((source) => !source.ended), 'The final part of the fairy hold must still have a voice.');
+      game.holdProgress = 0;
+      audio.tick(game);
+      context.advance((phrase + 1) * 3);
+      graph.forEach((node) => assert.equal(node.disconnected, true));
+      assert.equal(context.active().filter((source) => source.wave?.imaginary.length === 33 || source instanceof BufferSource).length, 0);
+    }
+  });
+});
+
+for (const fairy of FAIRIES) {
+test(`one singer stays audible through ${fairy.id}’s actual hold after a half-second frame stall`, async () => {
+  // Rejects a wall-clock fade or source expiry while the clamped game clock is still holding.
+  await withAudio(async (audio, context) => {
+    const game = startGame(createGame());
+    Object.assign(game.player, { x: fairy.x, z: fairy.z });
+    audio.tick(game);
+    const firstNode = context.nodes.length;
+    let wallTime = 0;
+    let song, graph, envelope;
+    for (let frame = 0; frame < 160 && game.tears.length === 0; frame++) {
+      const elapsed = frame === 59 ? .5 : 1 / 60;
+      wallTime += elapsed;
+      context.advance(wallTime);
+      step(game, { interact: true }, elapsed);
+      audio.tick(game);
+      const vocalSources = context.sources().filter((source) => source.wave?.imaginary.length === 33 ||
+        source instanceof BufferSource || source.frequency?.events[0]?.[1] === 5);
+      if (!song) {
+        song = vocalSources;
+        graph = context.nodes.slice(firstNode);
+        const folds = song.find((source) => source.wave);
+        envelope = folds.connections[0].connections[0].connections[0].connections[0].gain;
+        assert.equal(song.length, 3, 'The real game hold must start all three singer sources.');
+      }
+      if (game.holdProgress > 0) {
+        assert.equal(vocalSources.length, 3, 'An uninterrupted game hold must keep one singer graph, even after a stalled frame.');
+        assert.ok(song.every((source) => !source.ended), 'The original singer must last until the game awards the tear.');
+        assert.equal(envelope.events.some(([kind, value, time]) =>
+          kind === 'exponential' && value < .001 && time <= wallTime), false,
+        'A held song must not fade to near zero on the audio wall clock before the game completes it.');
+      }
+    }
+    assert.equal(game.tears.length, 1, 'The actual game must complete the uninterrupted song.');
+    assert.ok(wallTime > 2.4 && wallTime < 2.5, 'The fixture must separate wall time from the clamped game clock.');
+    song.forEach((source) => assert.ok(source.stopTime <= wallTime + .041));
+    context.advance(wallTime + .05);
+    graph.forEach((node) => assert.equal(node.disconnected, true, 'Completion must clean the sustained singer graph.'));
+  });
+});
+}
 
 for (const interrupt of ['pause', 'mute']) {
   test(`${interrupt} cancels active and future notes and resumes with fresh music`, async () => {
@@ -354,6 +565,7 @@ const animalThemes = [
   { id: 'fox', tempo: 108, opening: [74, 78, 76, 74, 69], tonic: 74 },
   { id: 'owl', tempo: 72, opening: [71, 67, 64], tonic: 64 },
   { id: 'deer', tempo: 84, opening: [67, 71, 74, 79], tonic: 67 },
+  { id: 'badger', tempo: 76, opening: [60, 64, 67, 64], tonic: 60 },
 ];
 const leadNotes = (context) => context.sources().filter((source) => source.wave?.imaginary.length === 6);
 const midiOf = (source) => Math.round(69 + 12 * Math.log2(source.frequency.value / 440));

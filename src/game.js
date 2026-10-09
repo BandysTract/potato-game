@@ -1,4 +1,5 @@
-import { BOUNDS, CREATURES, FAIRIES, HOME, OBSTACLES, POTATOES, START } from './data.js';
+import { BOUNDS, CREATURES, FAIRIES, HOME, HOUSE_BOUNDS, HOUSE_OBSTACLES, HOUSE_START, HOUSE_TARGETS, OBSTACLES, POTATOES, START } from './data.js';
+import { DIALOGUES, HOUSE_ACTIVITIES } from './dialogues.js';
 import { placeName, t } from './i18n.js';
 
 const SPEED = 5;
@@ -11,16 +12,22 @@ const distanceTo = (player, target) => Math.hypot(player.x - target.x, player.z 
 const giftsReady = (game) => POTATOES.every(({ id }) => game.potatoes.includes(id))
   && FAIRIES.every(({ id }) => game.tears.includes(id));
 
-export function createGame(language = 'cs') {
+export function createGame(language = 'cs', random = Math.random) {
   return {
     language: language === 'en' ? 'en' : 'cs',
     phase: 'intro',
+    scene: 'outdoors',
+    houseStep: 0,
+    houseInteractionHeld: false,
+    gardenWatered: false,
     player: { ...START, facing: 1, moving: false },
     potatoes: [],
     tears: [],
     activeFairy: null,
     holdProgress: 0,
     conversation: null,
+    conversationIndex: null,
+    dialogueNext: Object.fromEntries(CREATURES.map(({ id }) => [id, Math.floor(random() * DIALOGUES[id].length)])),
     talked: [],
     message: '',
     messageKey: '',
@@ -44,8 +51,18 @@ export function startGame(game) {
 
 export function finishConversation(game) {
   if (game.conversation !== null) {
-    if (!game.talked.includes(game.conversation)) game.talked.push(game.conversation);
+    if (game.scene === 'house') {
+      const activity = HOUSE_ACTIVITIES[game.houseStep];
+      if (activity?.id === game.conversation && game.houseStep < 2) {
+        game.houseStep += 1;
+        setMessage(game, activity.message, {}, 7);
+      }
+    } else {
+      if (!game.talked.includes(game.conversation)) game.talked.push(game.conversation);
+      game.dialogueNext[game.conversation] = (game.conversationIndex + 1) % DIALOGUES[game.conversation].length;
+    }
     game.conversation = null;
+    game.conversationIndex = null;
   }
   return game;
 }
@@ -58,7 +75,9 @@ function remainingTargets(game) {
 }
 
 export function getNearby(game) {
-  const candidates = [
+  const candidates = game.scene === 'house' ? HOUSE_TARGETS.map((target, index) => ({
+    ...target, name: HOUSE_ACTIVITIES[index].name, type: 'house', ready: index === game.houseStep, completed: index < game.houseStep,
+  })) : [
     ...remainingTargets(game),
     ...CREATURES.map((creature) => ({ ...creature, type: 'creature' })),
     { ...HOME, type: 'home', ready: giftsReady(game) },
@@ -80,6 +99,10 @@ export function getNearby(game) {
 }
 
 export function getGoal(game) {
+  if (game.scene === 'house') {
+    const target = HOUSE_TARGETS[game.houseStep];
+    return { ...target, type: 'house', label: t(game.language, HOUSE_ACTIVITIES[game.houseStep].label), distance: distanceTo(game.player, target) };
+  }
   const remaining = remainingTargets(game);
   const targets = remaining.length ? remaining : [{ ...HOME, type: 'home' }];
   let nearest = null;
@@ -107,12 +130,15 @@ export function setMessage(game, englishKey, values = {}, seconds = 5) {
   return game;
 }
 
-function movePlayer(player, dx, dz) {
-  const clampX = (x) => Math.max(BOUNDS.minX + PLAYER_RADIUS, Math.min(BOUNDS.maxX - PLAYER_RADIUS, x));
-  const clampZ = (z) => Math.max(BOUNDS.minZ + PLAYER_RADIUS, Math.min(BOUNDS.maxZ - PLAYER_RADIUS, z));
+function movePlayer(game, dx, dz) {
+  const player = game.player;
+  const bounds = game.scene === 'house' ? HOUSE_BOUNDS : BOUNDS;
+  const obstacles = game.scene === 'house' ? HOUSE_OBSTACLES : OBSTACLES;
+  const clampX = (x) => Math.max(bounds.minX + PLAYER_RADIUS, Math.min(bounds.maxX - PLAYER_RADIUS, x));
+  const clampZ = (z) => Math.max(bounds.minZ + PLAYER_RADIUS, Math.min(bounds.maxZ - PLAYER_RADIUS, z));
   let x = clampX(player.x + dx);
   let z = clampZ(player.z + dz);
-  for (const obstacle of OBSTACLES) {
+  for (const obstacle of obstacles) {
     const offsetX = x - obstacle.x;
     const offsetZ = z - obstacle.z;
     const distance = Math.hypot(offsetX, offsetZ);
@@ -168,10 +194,32 @@ export function step(game, input = {}, dt = 0) {
   const magnitude = Math.max(1, Math.hypot(screenX, screenY));
   const x = screenX / magnitude;
   const y = screenY / magnitude;
-  movePlayer(game.player, (x + y) * Math.SQRT1_2 * SPEED * seconds, (-x + y) * Math.SQRT1_2 * SPEED * seconds);
+  movePlayer(game, (x + y) * Math.SQRT1_2 * SPEED * seconds, (-x + y) * Math.SQRT1_2 * SPEED * seconds);
   if (game.player.moving && x !== 0) game.player.facing = Math.sign(x);
 
   const nearby = getNearby(game);
+  if (game.scene === 'house') {
+    stopSong(game);
+    const pressed = Boolean(input.interact) && !game.houseInteractionHeld;
+    game.houseInteractionHeld = Boolean(input.interact);
+    if (!pressed || !nearby) return game;
+    if (!nearby.ready) {
+      setMessage(game, 'Follow the house guide to the next step.');
+      return game;
+    }
+    game.player.moving = false;
+    if (game.houseStep < 2) game.conversation = nearby.id;
+    else {
+      setMessage(game, HOUSE_ACTIVITIES[game.houseStep].message, {}, 7);
+      if (game.houseStep === 4) {
+        game.phase = 'won';
+        game.player.x = 0;
+        game.player.z = 2.5;
+      }
+      else game.houseStep += 1;
+    }
+    return game;
+  }
   if (!input.interact || !nearby) {
     stopSong(game);
     return game;
@@ -198,13 +246,17 @@ export function step(game, input = {}, dt = 0) {
   } else if (nearby.type === 'creature') {
     stopSong(game);
     game.conversation = nearby.id;
+    game.conversationIndex = game.dialogueNext[nearby.id];
     game.player.moving = false;
   } else {
     stopSong(game);
     if (nearby.ready) {
-      game.phase = 'won';
+      game.scene = 'house';
+      game.player = { ...HOUSE_START, facing: 1, moving: false };
+      game.houseInteractionHeld = true;
+      game.gardenWatered = true;
       game.player.moving = false;
-      setMessage(game, 'Home with 6 potatoes and 3 fairy tears. The kettle is on, and supper can begin.', {}, 0);
+      setMessage(game, 'The fairy tears water the garden. Inside, John and Aldo are waiting.', {}, 7);
     } else {
       homeInstruction(game);
     }

@@ -13,6 +13,8 @@ let sound = false;
 let soundPreference = null;
 let soundError = '';
 let dialogueChoice = null;
+let endingTime = 0;
+const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 const keys = new Set();
 let touch = { x: 0, y: 0, interact: false };
 let pendingInteraction = false;
@@ -28,7 +30,7 @@ let frame;
 let audioFocused = document.hasFocus();
 
 function syncAudioPause() {
-  audio.setPaused(stopped || !audioFocused || document.hidden || Boolean(overlay) && !['intro', 'win', 'dialogue'].includes(overlay));
+  audio.setPaused(stopped || !audioFocused || document.hidden || Boolean(overlay) && !['intro', 'win', 'reveal', 'dialogue'].includes(overlay));
 }
 
 function clearInput() {
@@ -49,8 +51,8 @@ function showOverlay(next) {
 
 function drawUI() {
   ui.update(game, {
-    overlay, sound, soundError: soundError ? t(game.language, soundError) : '', nearby: getNearby(game), goal: getGoal(game), region: t(game.language, regionAt(game.player)),
-    dialogue: { creatureId: game.conversation, choice: dialogueChoice },
+    overlay, sound, soundError: soundError ? t(game.language, soundError) : '', nearby: getNearby(game), goal: getGoal(game), region: t(game.language, game.scene === 'house' ? 'Inside the cottage' : regionAt(game.player)),
+    dialogue: { creatureId: game.conversation, index: game.conversationIndex, choice: dialogueChoice },
   });
 }
 
@@ -75,13 +77,13 @@ function setSound(next) {
 function syncLanguage() {
   document.documentElement.lang = game.language;
   document.title = t(game.language, 'What’s cooking in Pec?');
-  document.querySelector('meta[name="description"]').setAttribute('content', t(game.language, 'A gentle little adventure with Hana in the forests above Pec pod Sněžkou. Gather potatoes, sing to fairies, and find your way home.'));
+  document.querySelector('meta[name="description"]').setAttribute('content', t(game.language, 'Explore the forests above Pec pod Sněžkou with Hana. Gather potatoes, sing with fairies, and come home to John and baby Aldo for supper.'));
   document.querySelector('#app').setAttribute('aria-label', document.title);
-  document.querySelector('#world').setAttribute('aria-label', t(game.language, 'An illustrated mountain forest'));
+  document.querySelector('#world').setAttribute('aria-label', t(game.language, game.scene === 'house' ? 'Inside Hana’s cottage with John and baby Aldo' : 'An illustrated mountain forest'));
 }
 
 function closeOverlay() {
-  if (overlay === 'intro' || overlay === 'win') return;
+  if (overlay === 'intro' || overlay === 'win' || overlay === 'reveal') return;
   if (overlay === 'dialogue') { onAction('dialogueFinish'); return; }
   const next = returnOverlay;
   returnOverlay = null;
@@ -95,9 +97,11 @@ function onAction(action, value) {
     returnOverlay = null;
     showOverlay(null);
     if (soundPreference === null) setSound(true);
-  } else if (action === 'restart' && game.phase === 'won') {
+  } else if (action === 'restart' && game.phase === 'won' && overlay === 'win') {
     game = createGame(game.language);
     startGame(game);
+    endingTime = 0;
+    syncLanguage();
     returnOverlay = null;
     showOverlay(null);
   } else if (action === 'pause' && game.phase === 'playing' && !overlay) {
@@ -159,7 +163,7 @@ function onKeyDown(event) {
   } else if (movementKeys.has(event.code) && !overlay) {
     event.preventDefault();
     keys.add(event.code);
-    if (event.code === 'KeyE') pendingInteraction = true;
+    if (event.code === 'KeyE' && !event.repeat) pendingInteraction = true;
   }
 }
 function onKeyUp(event) { keys.delete(event.code); }
@@ -230,12 +234,17 @@ function animate(timestamp) {
   if (!overlay) {
     const potatoesBefore = game.potatoes.length;
     const tearsBefore = game.tears.length;
+    const sceneBefore = game.scene;
     step(game, {
       x: Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft')) + touch.x,
       y: Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp')) + touch.y,
       interact: pendingInteraction || keys.has('KeyE') || touch.interact,
     }, dt);
     if (dt > 0) pendingInteraction = false;
+    if (game.scene !== sceneBefore) {
+      clearInput();
+      syncLanguage();
+    }
     audio.tick(game, dt);
     if (game.potatoes.length > potatoesBefore) audio.collect('potato');
     if (game.tears.length > tearsBefore) audio.collect('fairy');
@@ -246,9 +255,14 @@ function animate(timestamp) {
     }
     if (game.phase === 'won') {
       audio.finish();
-      showOverlay('win');
+      endingTime = 0;
+      showOverlay(reducedMotion?.matches ? 'win' : 'reveal');
     }
   } else if (overlay === 'dialogue' || overlay === 'intro') audio.tick(game, dt);
+  else if (overlay === 'reveal') {
+    endingTime += dt;
+    if (reducedMotion?.matches || endingTime >= 3.6) showOverlay('win');
+  }
   world.update(game, dt, timestamp / 1000);
   drawUI();
   frame = requestAnimationFrame(animate);

@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { BOUNDS, CREATURES, FAIRIES, HOME, OBSTACLES, POTATOES, START } from '../src/data.js';
+import { BOUNDS, CREATURES, FAIRIES, HOME, HOUSE_OBSTACLES, HOUSE_START, HOUSE_TARGETS, OBSTACLES, POTATOES, START } from '../src/data.js';
 import { createGame, finishConversation, getGoal, getNearby, setLanguage, setMessage, startGame, step } from '../src/game.js';
+import { HOUSE_ACTIVITIES, DIALOGUES } from '../src/dialogues.js';
 import { CS, placeName, t } from '../src/i18n.js';
 
 const idle = { x: 0, y: 0, interact: false };
@@ -22,7 +23,7 @@ function walkTo(game, target) {
     if (Math.hypot(dx, dz) < 0.12) return;
     const seconds = Math.min(0.05, Math.hypot(dx, dz) / 5);
     step(game, { x: (dx - dz) * Math.SQRT1_2, y: (dx + dz) * Math.SQRT1_2 }, seconds);
-    for (const obstacle of OBSTACLES) {
+    for (const obstacle of (game.scene === 'house' ? HOUSE_OBSTACLES : OBSTACLES)) {
       assert.ok(distance(game.player, obstacle) >= obstacle.radius + 0.4, 'The walked route must not cross an obstacle.');
     }
   }
@@ -135,7 +136,7 @@ test('cottage collision keeps clearance at the map edge without idle drift', () 
   for (const side of [1, -1]) {
     const game = playing();
     frames(game, 24, { x: side, y: side });
-    frames(game, 40, { x: -1, y: 1 });
+    frames(game, 60, { x: -1, y: 1 });
     frames(game, 40, { x: -side, y: -side });
     close(game.player.z, BOUNDS.maxZ - playerRadius);
     assert.ok(game.player.x >= BOUNDS.minX + playerRadius && game.player.x <= BOUNDS.maxX - playerRadius);
@@ -217,13 +218,15 @@ test('starting another fairy’s song begins from zero', () => {
   assert.deepEqual(game.tears, []);
 });
 
-test('home explains both missing gifts and cannot finish early', () => {
+test('home explains both missing gifts and cannot enter early', () => {
   const game = playing();
   walkTo(game, HOME);
   assert.equal(getNearby(game)?.type, 'home');
   assert.equal(getNearby(game)?.ready, false);
   step(game, { ...idle, interact: true }, 0.05);
   assert.equal(game.phase, 'playing');
+  assert.equal(game.scene, 'outdoors');
+  assert.equal(game.gardenWatered, false);
   assert.match(game.message, /potatoes 6/);
   assert.match(game.message, /fairy tears 3/);
 });
@@ -245,7 +248,7 @@ test('guidance points to the nearest uncollected gift and updates after collecti
   assert.equal(getGoal(game).id, FAIRIES[0].id, 'Guidance must choose the nearby fairy over the first potato in the data.');
 });
 
-test('all potatoes still require fairy tears before home can finish', () => {
+test('all potatoes still require fairy tears before entering the house', () => {
   const game = playing();
   collect(game, POTATOES[0]);
   collect(game, POTATOES[1]);
@@ -259,6 +262,8 @@ test('all potatoes still require fairy tears before home can finish', () => {
   walkTo(game, HOME);
   step(game, { ...idle, interact: true }, 0.05);
   assert.equal(game.phase, 'playing');
+  assert.equal(game.scene, 'outdoors');
+  assert.equal(game.gardenWatered, false);
   assert.match(game.message, /fairy tears 3/);
   assert.match(game.message, /potatoes 0/);
 });
@@ -276,7 +281,7 @@ test('messages expire only during active play', () => {
   assert.ok(game.elapsed > 5);
 });
 
-test('creature conversations pause play, preserve gifts, and allow an idempotent replay', () => {
+test('creature conversations pause play, preserve gifts, and record repeat visits once', () => {
   const game = playing();
   assert.equal(game.conversation, null);
   assert.deepEqual(game.talked, []);
@@ -318,6 +323,86 @@ test('creature conversations pause play, preserve gifts, and allow an idempotent
   assert.deepEqual(restart.talked, []);
 });
 
+test('a new walk draws one independent opening per animal and owns its rotation state', () => {
+  // Rejects one shared random draw for all animals and a fixed first question.
+  const draws = [0, 0.34, 0.999, 0.67];
+  let count = 0;
+  const game = createGame('en', () => draws[count++]);
+  assert.equal(count, CREATURES.length);
+  assert.deepEqual(game.dialogueNext, { fox: 0, owl: 1, deer: 2, badger: 2 });
+  assert.equal(game.conversationIndex, null);
+  const another = createGame('en', () => 0.34);
+  assert.deepEqual(another.dialogueNext, { fox: 1, owl: 1, deer: 1, badger: 1 });
+  assert.notEqual(game.dialogueNext, another.dialogueNext);
+});
+
+test('every animal cycles three questions from any starting question only when closed', () => {
+  // Rejects rerolling on each visit, advancing on open, and counting a double close.
+  for (const initial of [0, 1, 2]) {
+    let draws = 0;
+    const game = startGame(createGame('en', () => { draws++; return (initial + 0.1) / 3; }));
+    walkTo(game, { x: -7, z: 5 });
+    for (const creature of CREATURES) {
+      if (creature.id === 'owl') walkTo(game, { x: -16, z: -9 });
+      if (creature.id === 'deer') walkTo(game, { x: 4, z: -21 });
+      walkTo(game, creature);
+      const otherIndices = Object.fromEntries(Object.entries(game.dialogueNext).filter(([id]) => id !== creature.id));
+      const seen = [];
+      for (let visit = 0; visit < 4; visit++) {
+        const expected = (initial + visit) % 3;
+        step(game, { interact: true }, 0.05);
+        assert.equal(game.conversation, creature.id);
+        assert.equal(game.conversationIndex, expected);
+        assert.equal(game.dialogueNext[creature.id], expected, 'Opening must not consume the question.');
+        seen.push(game.conversationIndex);
+        const before = structuredClone(game);
+        frames(game, 20, { x: 1, y: 1, interact: true });
+        assert.deepEqual(game, before, 'Reading must keep the active question and next question stable.');
+        setLanguage(game, visit % 2 ? 'en' : 'cs');
+        assert.equal(game.conversationIndex, expected, 'Changing language must keep the question.');
+        finishConversation(game);
+        assert.equal(game.conversationIndex, null);
+        assert.equal(game.dialogueNext[creature.id], (expected + 1) % 3);
+        finishConversation(game);
+        assert.equal(game.dialogueNext[creature.id], (expected + 1) % 3, 'A repeated close must not skip a question.');
+      }
+      assert.equal(new Set(seen.slice(0, 3)).size, 3);
+      assert.equal(seen[3], seen[0]);
+      assert.deepEqual(Object.fromEntries(Object.entries(game.dialogueNext).filter(([id]) => id !== creature.id)), otherIndices);
+      assert.deepEqual(game.potatoes, []);
+      assert.deepEqual(game.tears, []);
+    }
+    assert.equal(draws, CREATURES.length, 'Visits and language changes must not draw new randomness.');
+    assert.deepEqual(game.talked, CREATURES.map(({ id }) => id));
+  }
+});
+
+test('all four animals have three distinct bilingual conversations with two complete branches', () => {
+  assert.equal(CREATURES.length, 4);
+  for (const { id } of CREATURES) {
+    const dialogues = DIALOGUES[id];
+    assert.equal(dialogues.length, 3, `${id} needs three questions.`);
+    for (const language of ['cs', 'en']) {
+      assert.equal(new Set(dialogues.map(({ opening }) => opening[language])).size, 3);
+      assert.equal(new Set(dialogues.map(({ theme }) => theme[language])).size, 3);
+      for (const dialogue of dialogues) {
+        assert.equal(dialogue.choices.length, 2);
+        assert.ok(dialogue.theme[language]);
+        assert.ok(dialogue.opening[language]);
+        const [first, second] = dialogue.choices;
+        for (const choice of dialogue.choices) {
+          assert.ok(choice[language]);
+          assert.ok(choice.reply[language]);
+          assert.ok(choice.reflection[language]);
+        }
+        assert.notEqual(first[language], second[language]);
+        assert.notEqual(first.reply[language], second.reply[language]);
+        assert.notEqual(first.reflection[language], second.reflection[language]);
+      }
+    }
+  }
+});
+
 test('each forest creature can be reached and spoken to through normal controls', () => {
   const game = playing();
   walkTo(game, { x: -7, z: 5 });
@@ -335,7 +420,7 @@ test('each forest creature can be reached and spoken to through normal controls'
   assert.equal(game.phase, 'playing');
 });
 
-test('the complete adventure is reachable through controls and freezes when home', () => {
+test('the complete adventure walks through gathering, family, dinner, and the reward', () => {
   const game = playing();
   collect(game, POTATOES[0]);
   collect(game, POTATOES[1]);
@@ -364,6 +449,8 @@ test('the complete adventure is reachable through controls and freezes when home
   walkTo(game, HOME);
   step(game, { ...idle, interact: true }, 0.05);
   assert.equal(game.phase, 'playing');
+  assert.equal(game.scene, 'outdoors');
+  assert.equal(game.gardenWatered, false);
   assert.match(game.message, /potatoes 1/);
   assert.match(game.message, /fairy tears 0/);
   walkTo(game, { x: 8, z: 7 });
@@ -379,9 +466,65 @@ test('the complete adventure is reachable through controls and freezes when home
   walkTo(game, HOME);
   assert.equal(getNearby(game)?.ready, true);
   step(game, { ...idle, interact: true }, 0.05);
+  assert.equal(game.phase, 'playing', 'Bringing the gifts home must start the playable house chapter.');
+  assert.equal(game.scene, 'house');
+  assert.equal(game.houseStep, 0);
+  assert.equal(game.gardenWatered, true);
+  assert.deepEqual({ x: game.player.x, z: game.player.z }, HOUSE_START);
+  assert.equal(getGoal(game).id, 'john');
+  assert.match(game.message, /garden/);
+  assert.deepEqual(game.talked, [], 'Animal conversations are optional for the entire adventure.');
+
+  // Out-of-order household actions can’t bypass family time or cooking.
+  walkTo(game, HOUSE_TARGETS[4]);
+  step(game, { ...idle, interact: true }, 0.05);
+  assert.equal(getNearby(game).ready, false);
+  assert.equal(game.houseStep, 0);
+  assert.equal(game.conversation, null, 'An out-of-order action must not open a family conversation.');
+  assert.equal(game.phase, 'playing');
+  for (const [index, target] of HOUSE_TARGETS.entries()) {
+    walkTo(game, target);
+    assert.equal(getGoal(game).id, target.id);
+    assert.equal(getNearby(game).id, target.id);
+    assert.equal(getNearby(game).ready, true);
+    step(game, { ...idle, interact: true }, 0.05);
+    if (index < 2) {
+      assert.equal(game.conversation, target.id, 'Family interactions open a real conversation.');
+      assert.equal(game.houseStep, index, 'Reading a family conversation must not finish the step early.');
+      const paused = structuredClone(game);
+      frames(game, 20, { x: 1, y: 1, interact: true });
+      assert.deepEqual(game, paused);
+      setLanguage(game, 'cs');
+      assert.equal(game.conversation, target.id);
+      finishConversation(game);
+      assert.equal(game.houseStep, index + 1);
+      assert.equal(game.message, CS[HOUSE_ACTIVITIES[index].message]);
+      setLanguage(game, 'en');
+    } else if (index < 4) assert.equal(game.houseStep, index + 1);
+    if (index < 4) {
+      assert.equal(game.phase, 'playing');
+      assert.equal(getGoal(game).id, HOUSE_TARGETS[index + 1].id);
+      // Holding E while walking to the next stop must not start another action.
+      const next = HOUSE_TARGETS[index + 1];
+      for (let frame = 0; frame < 300 && distance(game.player, next) > 1.8; frame++) {
+        const dx = next.x - game.player.x;
+        const dz = next.z - game.player.z;
+        step(game, { x: (dx - dz) * Math.SQRT1_2, y: (dx + dz) * Math.SQRT1_2, interact: true }, 0.05);
+      }
+      assert.equal(game.conversation, null, 'Holding E must not open the next family conversation.');
+      assert.equal(game.houseStep, index + 1, 'A held action must not skip a household step.');
+      assert.ok(distance(game.player, next) <= 1.8, 'The held-action fixture reaches the next stop.');
+      step(game, idle, 0.05);
+    }
+  }
   assert.equal(game.phase, 'won');
+  assert.equal(game.scene, 'house');
+  assert.equal(game.houseStep, 4);
   assert.equal(game.player.moving, false);
-  assert.equal(game.message, 'Home with 6 potatoes and 3 fairy tears. The kettle is on, and supper can begin.');
+  assert.deepEqual(game.talked, [], 'House conversations must not enter the optional animal visit list.');
+  assert.equal(game.message, HOUSE_ACTIVITIES[4].message);
+  assert.deepEqual(game.potatoes, POTATOES.map(({ id }) => id));
+  assert.deepEqual(game.tears, FAIRIES.map(({ id }) => id));
   setLanguage(game, 'cs');
   assert.equal(game.message, CS[game.messageKey]);
   const finished = structuredClone(game);
@@ -498,9 +641,28 @@ test('literal interface keys and shared place names have Czech translations', ()
     ...[...(ui + main).matchAll(/\bt\((?:language|game\.language),\s*'([^']+)'/g)].map((match) => match[1]),
   ];
   assert.ok(new Set(literalKeys).size > 60, 'The source scan must find the real interface rather than an empty set.');
-  const places = [HOME.name, ...POTATOES.map(({ name }) => name), ...FAIRIES.map(({ place }) => place)];
+  const places = [HOME.name, ...HOUSE_ACTIVITIES.flatMap(({ name, label, action, message, theme }) => [name, label, action, message, ...(theme ? [theme] : [])]), ...POTATOES.map(({ name }) => name), ...FAIRIES.map(({ place }) => place)];
   for (const key of [...literalKeys, ...places, ...FAIRIES.map(({ message }) => message), ...CREATURES.flatMap(({ englishName, theme }) => [englishName, theme])]) {
     assert.ok(Object.hasOwn(CS, key), `Missing Czech translation: ${key}`);
     assert.ok(CS[key].length > 0, `Empty Czech translation: ${key}`);
   }
+});
+
+
+test('family dialogue supplies both languages and names the relationships', () => {
+  for (const id of ['john', 'aldo']) {
+    const dialogue = DIALOGUES[id];
+    assert.equal(dialogue.choices.length, 2);
+    for (const language of ['cs', 'en']) {
+      assert.ok(dialogue.opening[language].length > 30);
+      for (const choice of dialogue.choices) {
+        assert.ok(choice[language].length > 10);
+        assert.ok(choice.reply[language].length > 20);
+        assert.ok(choice.reflection[language].length > 10);
+      }
+    }
+  }
+  assert.match(DIALOGUES.aldo.opening.en, /Baby Aldo/);
+  assert.equal(HOUSE_ACTIVITIES[0].theme, 'Hana’s husband');
+  assert.equal(HOUSE_ACTIVITIES[1].theme, 'Hana and John’s infant son');
 });

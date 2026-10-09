@@ -2,7 +2,7 @@
 
 **What’s cooking in Pec?**
 
-A gentle, sprite-based 3D browser adventure set in an imagined forest above Pec pod Sněžkou. Play as Hana, gather 6 potatoes, sing with 3 fairies for their tears of joy, and return to the cottage for supper. Talk with a fox, an owl, and a deer through short philosophical conversations. The Czech/English switch translates the whole game and preserves your progress.
+A gentle, illustrated browser adventure set in an imagined forest above Pec pod Sněžkou. Play as Hana, gather 6 potatoes, and sing a different song with each of 3 fairies along a winding forest loop. Talk with a fox, an owl, a deer, and a badger through short philosophical conversations. Come home to Hana’s husband John and their infant son Aldo, then prepare, cook, and serve dinner. After supper, Hana glows, rises gently, and becomes a pagan Slavic goddess. The Czech/English switch translates the whole game and preserves your progress.
 
 ## Play locally
 
@@ -20,12 +20,13 @@ Open the local address printed by Vite. The game runs entirely in the browser. O
 | WASD or arrow keys | Walk in the direction shown on screen |
 | E | Gather a nearby potato or talk with a creature |
 | Hold E while standing still | Sing with a fairy for 2 seconds |
-| E at the cottage | Finish after gathering all the gifts |
+| E at the cottage | Go inside after gathering all the gifts |
+| E inside | Greet John, visit Aldo, prepare the potatoes, cook, and serve dinner |
 | M | Open or close the map |
 | H | How to play |
 | Esc | Pause or close the current panel |
 
-The game starts in Czech. Choose “English” on the title screen or during play to switch languages. Touch screens have directional buttons and an action button. Use the title screen’s sound button to hear the opening theme. Music can also begin with your first click or keypress in the introduction. The sound button can mute it, and starting or replaying keeps your choice. The map shows every remaining gift and Hana’s position. Conversations can be revisited and don't have right or wrong answers. There's no combat, time limit, or failure penalty.
+The game starts in Czech. Choose “English” on the title screen or during play to switch languages. Touch screens have directional buttons and an action button. Use the title screen’s sound button to hear the opening theme. Music can also begin with your first click or keypress in the introduction. The sound button can mute it, and starting or replaying keeps your choice. The forest map shows every remaining gift and Hana’s position. Inside, it becomes a room plan with the five dinner steps. Release the action button between household tasks. Forest conversations can be revisited and don’t have right or wrong answers. There’s no combat, time limit, or failure penalty. The reduced-motion setting keeps the scenery still and shows a glowing goddess without the animated rise. Changing the setting during play takes effect immediately.
 
 ## Build and checks
 
@@ -41,9 +42,13 @@ On macOS, `node launcher/start-game.mjs` opens the production build in your defa
 
 ## Art and cultural notes
 
-All sprite art is original, drawn in code onto small canvas textures. Three.js places the sprites in a 3D scene with depth, paths, a brook, and an orthographic camera. The world renders at the viewport size with smooth edges. Shaded sprites and rounded scenery carry the classic console feel without pixelating the image. An original 32-bar title waltz combines a woodwind melody, warm horn tones, strings, and plucked notes. Starting the walk switches to a separate 3/4 tune with woodwind, bass, and plucked chords. Hana’s song uses airy choir tones. The fox, owl, and deer each have a longer theme with their own melody and accompaniment. Music and collection sounds are synthesized locally through the browser.
+All sprite art is original, drawn in code onto canvas textures. Three.js arranges the illustrations in layers with depth, paths, a brook, and an orthographic camera. The world renders at the viewport size with smooth edges. The visual direction is a contemporary illustrated 2D woodland, with matte foliage, expressive faces, shaped hands and paws, detailed clothing, and layered undergrowth. Trees and plants sway gently, ripples travel along the brook, and the fairies flutter their wings. The cottage has a furnished kitchen, John, and Aldo in his cot. Hana’s goddess form wears a floral crown and an embroidered dress, surrounded by a soft golden glow.
 
-The title plays on Pec and the Czech word *pec*, an oven. The mountain town, Krkonoše setting, trail-marking tradition, and regional food are real. The route, forest gardens, fairy characters, and philosophical conversations are invented for the game. Hana gathers potatoes from planted gardens. Fairy tears water her garden. They aren't presented as an ingredient in a traditional recipe.
+An original 32-bar title waltz combines a woodwind melody, warm horn tones, strings, and plucked notes. Starting the walk switches to a separate 3/4 tune with woodwind, bass, and plucked chords. Hana’s synthesized solo voice uses changing vowel resonances, breath, gentle pitch slides, and delayed vibrato. It isn’t a human recording. Each fairy has a distinct melody and rhythm, and each animal has its own conversation theme. Music and collection sounds are synthesized locally through the browser.
+
+Each animal has three original conversations in Czech and English. A new walk picks a random starting conversation for each animal. Revisiting an animal cycles through its three conversations before repeating. Changing language keeps the current conversation and selected reply. The exchanges explore fairness, knowledge, kindness, and life at home, without scoring Hana’s answers.
+
+The title plays on Pec and the Czech word *pec*, an oven. The mountain town, Krkonoše setting, trail-marking tradition, and regional food are real. The route, forest gardens, fairy characters, and philosophical conversations are invented for the game. The goddess is an original Slavic-inspired character, rather than a depiction of a named historical deity. Hana gathers potatoes from planted gardens. Fairy tears water her garden. They aren’t presented as an ingredient in a traditional recipe.
 
 - [The Eastern Krkonoše municipal association](https://vychodnikrkonose.cz/informace/clenske-obce/pec-pod-snezkou) records the town’s early smelting-furnace history.
 - [Pec pod Sněžkou’s official visitor website](https://www.pecpodsnezkou.cz/) describes local walks, mountain meadows, valleys, and forests.

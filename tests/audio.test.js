@@ -48,6 +48,8 @@ class FakeContext {
     return { length, sampleRate, getChannelData: (channel) => data[channel] };
   }
   createBiquadFilter() { const node = new Node(); node.frequency = new Param(); node.Q = new Param(); this.nodes.push(node); return node; }
+  createStereoPanner() { const node = new Node(); node.pan = new Param(); this.nodes.push(node); return node; }
+  createConvolver() { const node = new Node(); node.type = 'convolver'; this.nodes.push(node); return node; }
   createPeriodicWave(real, imaginary) { return { real, imaginary }; }
   async resume() { this.state = 'running'; }
   async close() { this.state = 'closed'; this.closeCount++; }
@@ -80,6 +82,50 @@ async function withAudio(run, Context = FakeContext, onStatus = () => {}) {
 }
 
 const openings = { growth: [72, 72, 72, 72, 74, 76, 77, 76, 74, 72], woodland: [60, 64, 67, 67, 72, 72, 67, 67, 65, 65, 62, 62, 60, 64, 67], rain: [79, 79, 81, 79, 79, 79, 81, 79] };
+test('instrument placement and release retain the score timing', async () => {
+  await withAudio(async (audio, context) => {
+    const game = gameState(); game.player = { x: 0, z: -30 }; audio.tick(game);
+    const lead = context.sources().find(isLead);
+    assert.ok(lead);
+    assert.equal(lead.startTime, .025);
+    assert.ok(lead.stopTime > lead.startTime + SCORES.growth.events.find(event => event.melody).beats * SCORES.growth.beat + .05);
+    const panners = context.nodes.filter(node => node.pan);
+    assert.ok(panners.some(node => node.pan.value < 0));
+    assert.ok(panners.some(node => node.pan.value > 0));
+  });
+});
+
+test('room sound is cleared on pause and does not accumulate on repeated pause calls', async () => {
+  await withAudio(async (audio, context) => {
+    audio.tick(gameState());
+    const before = context.nodes.filter(node => node.type === 'convolver');
+    assert.ok(before.length > 0);
+    audio.setPaused(true);
+    assert.ok(before.every(node => node.disconnected));
+    const count = context.nodes.length;
+    for (let i = 0; i < 30; i++) audio.setPaused(true);
+    assert.equal(context.nodes.length, count);
+    audio.dispose();
+    assert.ok(context.nodes.filter(node => node.type === 'convolver').every(node => node.disconnected));
+  });
+});
+test('a suspended audio clock does not rebuild the room on game frames', async () => {
+  await withAudio(async (audio, context) => {
+    const game = gameState(); audio.tick(game);
+    context.state = 'suspended'; context.onstatechange();
+    assert.ok(context.active().length > 0, 'cancelled sources await the frozen audio clock');
+    const count = context.nodes.length;
+    for (let i = 0; i < 600; i++) audio.tick(game);
+    assert.equal(context.currentTime, 0);
+    assert.equal(context.nodes.length, count);
+    context.state = 'running'; context.onstatechange(); context.advance(.1);
+    audio.tick(game);
+    assert.ok(context.active().length > 0);
+    assert.ok(context.active().every(source => source.startTime >= .1));
+    audio.dispose();
+    assert.ok(context.nodes.filter(node => node.type === 'convolver').every(node => node.disconnected));
+  });
+});
 for (const [id, position] of [['growth', { x: 0, z: -30 }], ['woodland', { x: 0, z: 0 }], ['rain', { x: 24, z: -10 }]]) {
   test(`${id} plays its transcribed opening, full melody, and exact loop duration`, async () => {
     await withAudio(async (audio, context) => {
@@ -182,11 +228,13 @@ test('theme changes wait for a measure boundary and language changes preserve th
     startGame(game); game.player = { x: 0, z: 0 };
     context.advance(.2); audio.tick(game);
     for (let f = 13; f < 150; f++) { context.advance(f / 60); audio.tick(game); }
-    const firstForest = context.sources().find(source => isLead(source) && midiOf(source) === 60);
+    const boundary = 3 * 60 / 96 + .025;
+    const titleNotes = context.sources().filter(source => isLead(source) && source.startTime < boundary - .001);
+    assert.deepEqual(titleNotes.map(midiOf), [60, 60, 60]);
+    const firstForest = context.sources().find(source => isLead(source) && source.startTime >= boundary - .001);
     assert.ok(firstForest);
     assert.ok(Math.abs(firstForest.startTime - (3 * 60 / 96 + .025)) < .001);
-    const growthNotes = context.sources().filter(source => isLead(source) && source.wave?.imaginary.length === 10);
-    assert.ok(growthNotes.every(source => source.startTime < firstForest.startTime));
+    assert.equal(midiOf(firstForest), 60);
   });
 });
 
@@ -252,7 +300,7 @@ test('failed instrument loading reports synthesized fallback and preserves the t
     await withAudio(async (audio, context) => {
       await audio.samplesReady(); assert.equal(audio.getSampleState(), 'fallback');
       const game = createGame(); audio.tick(game);
-      assert.deepEqual(context.sources().filter(isLead).map(midiOf).slice(0, 2), [72, 72]);
+      assert.deepEqual(context.sources().filter(isLead).map(midiOf).slice(0, 2), [60, 60]);
       assert.deepEqual(states, ['fallback']);
       assert.deepEqual(urls, ['/assets/audio/manifest.json']);
       assert.equal(game.tears.length, 0);
@@ -268,7 +316,7 @@ test('decoded samples use verified roots and tuning, and disposal drops late loa
   try {
     await withAudio(async (audio, context) => {
       await audio.samplesReady(); assert.equal(audio.getSampleState(), 'ready');
-      audio.tick(createGame());
+      const game = gameState(); game.player = { x: 0, z: -30 }; audio.tick(game);
       const lead = context.sources().find(isLead);
       assert.ok(lead instanceof BufferSource);
       assert.ok(Math.abs(lead.playbackRate.value - 2 ** (11.8 / 12)) < 1e-10);
@@ -283,6 +331,33 @@ test('decoded samples use verified roots and tuning, and disposal drops late loa
   } finally { globalThis.fetch = previous; }
 });
 
+test('title music waits briefly for recordings and falls back when loading stays slow', async () => {
+  const previous = globalThis.fetch;
+  let releaseFetch;
+  globalThis.fetch = () => new Promise(resolve => { releaseFetch = resolve; });
+  class DecodeContext extends FakeContext { async decodeAudioData() { return { duration: 20 }; } }
+  try {
+    await withAudio(async (audio, context) => {
+      const game = createGame(); audio.tick(game);
+      assert.equal(context.sources().length, 0);
+      context.advance(.5); audio.tick(game);
+      assert.equal(context.sources().length, 0);
+      globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(4) });
+      releaseFetch({ ok: true, json: async () => ({ samples: [{ instrument: 'clarinet', rootMidi: 60, tuneCents: 0, url: '/test.wav' }] }) });
+      await audio.samplesReady(); audio.tick(game);
+      assert.ok(context.sources().find(isLead) instanceof BufferSource);
+    }, DecodeContext);
+    globalThis.fetch = () => new Promise(resolve => { releaseFetch = resolve; });
+    await withAudio(async (audio, context) => {
+      const game = createGame(); audio.tick(game);
+      context.advance(1.01); audio.tick(game);
+      assert.ok(context.sources().find(isLead) instanceof Oscillator);
+      releaseFetch({ ok: false }); await audio.samplesReady();
+      assert.equal(audio.getSampleState(), 'fallback');
+    }, DecodeContext);
+  } finally { globalThis.fetch = previous; }
+});
+
 test('sample gain and attack offset reach the scheduled instrument source', async () => {
   const previous = globalThis.fetch;
   const sample = { instrument: 'violin', rootMidi: 72, tuneCents: 0, gainDb: 32.8, startOffset: .02, url: '/test.wav' };
@@ -290,7 +365,8 @@ test('sample gain and attack offset reach the scheduled instrument source', asyn
   class DecodeContext extends FakeContext { async decodeAudioData() { return { duration: 20 }; } }
   try {
     await withAudio(async (audio, context) => {
-      await audio.samplesReady(); audio.tick(createGame());
+      await audio.samplesReady();
+      const game = gameState(); game.player = { x: 0, z: -30 }; audio.tick(game);
       const lead = context.sources().find(source => source instanceof BufferSource);
       assert.equal(lead.startOffset, .02);
       assert.ok(lead.connections[0].gain.events.some(([kind, value]) => kind === 'linear' && Math.abs(value - .16 * 10 ** (32.8 / 20)) < 1e-8));

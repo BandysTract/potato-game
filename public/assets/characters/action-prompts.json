@@ -1,0 +1,26 @@
+{
+  "tool": "Built-in image_gen",
+  "mode": "identity-preserving edit",
+  "references": [
+    "actions.png",
+    "portraits.png"
+  ],
+  "gather": {
+    "file": "hana-gather.png",
+    "columns": 3,
+    "rows": 2,
+    "rowEdges": [
+      0,
+      0.47,
+      1
+    ],
+    "prompt": "Use case: identity-preserve. Image 1 is the existing action artwork; image 2 is Hana's authoritative face reference, woman on left only. Create a new SIX-FRAME potato-picking sequence, exactly THREE equal columns by TWO equal rows, reading left to right then second row. Same Hana, same painterly Czech storybook finish, face, honey-blonde braid and dark roots, red scarf, ivory floral embroidered blouse, teal-blue calf-length skirt, white embroidered apron, brown ankle boots, wicker basket supported on her screen-left arm. All frames same front-three-quarter view facing slightly screen right. Full bodies with boots on a shared ground line, consistent anatomical size and head size. Bending frames must be visibly shorter than standing ones, NOT enlarged.\nSix distinct continuous action phases: 1 standing with knees beginning to bend and free empty hand reaching down; 2 deep bend with empty free hand just above the ground; 3 same low bend, hand gripping ONE small potato at ground level; 4 rising halfway with that potato near her knee; 5 nearly upright placing the potato into her basket; 6 fully upright with free empty hand returning to her side and basket resting normally. Smooth transitions, believable shoulders/elbows/knees, gentle skirt folds, no duplicated poses.\nLayout critical: 3x2 equal cells, figure's hips centered within each cell, same boots baseline around 90% height. Keep every crown of hair and boot inside its OWN cell, generous transparent gutters around rows and columns. No scenery, soil patch, plants, cast shadow, backgrounds, text, grid, floating fragments, extra hands, extra potatoes, or other people. Real transparent alpha."
+  },
+  "pet": {
+    "file": "hana-pet.png",
+    "columns": 3,
+    "rows": 2,
+    "mirrored": 6,
+    "prompt": "Use case: identity-preserve. Image 1 is Hana's existing action artwork. Image 2 is face/likeness reference, woman left only. Create a NEW SIX-FRAME animation of Hana gently petting a small cat at ankle height, but draw ONLY HANA. The game already draws the cat separately. Absolutely no cat, potato, food, shovel, or other object in her free hand. Preserve face, honey-blonde braid/darker roots, red scarf tied behind hair, ivory floral-embroidered blouse, teal-blue calf-length skirt, white embroidered apron, brown ankle boots, wicker basket resting on her screen-left forearm, original painterly style.\nExactly THREE equal columns x TWO equal rows, same front-three-quarter view facing slightly screen right, sequence read across rows. 1 standing starting to bend her knees and lower her empty right hand. 2 settling into a gentle low crouch with knees bent, torso upright enough to look affectionately down toward screen right. 3 crouched with OPEN relaxed palm extended low to screen right at ankle height, fingers gently curved for a stroke. 4 same crouch and scale with open palm moved slightly farther right in a soft stroking motion, no gripping gesture. 5 hand retracts and knees begin to straighten. 6 returns to original full standing pose. Her hand must read as stroking a cat's back, never grasping a potato or digging.\nFull body visible in all cells, same physical body and head size across standing/crouching poses, crouching figures naturally shorter. Plant boots at a consistent baseline 90% down each cell. Complete hair and feet inside each equal cell with generous transparent row/column gutters. Real transparent alpha, no environment, ground shadows, colored backdrop, labels, grid, or cut-off limbs."
+  }
+}

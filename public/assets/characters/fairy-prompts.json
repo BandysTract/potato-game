@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-13",
+  "tool": "Built-in image_gen.imagegen",
+  "transparent_background": true,
+  "rasterPostprocessing": "None. Accepted generated PNG files copied without pixel edits.",
+  "layout": {
+    "width": 1536,
+    "height": 1024,
+    "columns": 3,
+    "rows": 1,
+    "cellWidth": 512,
+    "cellHeight": 1024,
+    "frameOrder": [
+      "neutral/open wings",
+      "gentle half-flutter",
+      "return/soft blink"
+    ]
+  },
+  "verification": {
+    "report": "evidence/fairy-art/alpha-audit.json",
+    "preview": "evidence/fairy-art/transparency-contact.png",
+    "limits": "True alpha verified. Main alpha>32 silhouettes are clear of cell edges. Tiny low-alpha generator specks exist in gutters. Max alpha is 254. Body scale and feet baseline are consistent within each sheet, but differ between characters. Rusalka's second wing pose is subtler than Běla's or Jitřenka's. Integration and gameplay review remain with parent agent."
+  },
+  "entries": [
+    {
+      "character": "Běla",
+      "asset": "public/assets/characters/fairy-birch-painted.png",
+      "prompts": [
+        {
+          "purpose": "initial generation",
+          "prompt": "Use case: illustration-story. Asset type: game sprite animation sheet.\nCreate one wide transparent PNG sheet containing exactly THREE full-body views of the SAME adult female birch fairy Běla, arranged left to right in one row of three equal cells. The attached actions.png and portraits.png are STYLE REFERENCES ONLY: match their high-fidelity soft painted Czech storybook realism, believable adult anatomy, beautifully modeled face and hands, fine hair strands, layered cloth and brushwork. Do not reproduce Hana or John.\nBěla has warm brown wavy hair, a modest small birch-leaf crown, gentle thoughtful friendly face, warm light skin, a modest cream and sage-green knee-length layered dress with a few birch-leaf panels and restrained botanical embroidery, and sage slippers. Four translucent pale cream/sage leaf-shaped wings with delicate leaf veins. In her raised right hand she holds a short twig wand topped by one small cream flower; her other hand extends softly outward in welcome. Calm and nurturing personality.\nAnimation cells: 1 neutral/open wings and open eyes; 2 gentle half-flutter with the wings visibly slightly folded inward while her body pose stays almost identical; 3 wings returning open, soft blink. Same character identity, same head size, same body scale, same camera, same feet baseline in every cell, faces generally forward/slightly right.\nComposition: canvas 1536 x 1024 preferred, three equal 512-pixel-wide cells. Each fairy centered in its cell, head near y=180 and feet near y=880, complete wings and flower wand comfortably inside the same cell. Leave at least 32 pixels fully transparent at ALL cell borders. Full figure and complete feet and complete wings visible, generous gutters. No figure overlaps another cell.\nTransparent background with true alpha, including translucent wing membranes. No background, paper, scenery, ground shadows, floating glitter, grid lines, typography, logos, or watermark. Do not make it flat vector art, cartoon outlines, a child, or a sexualized costume.",
+          "references": [
+            "public/assets/characters/actions.png",
+            "public/assets/characters/portraits.png"
+          ],
+          "source": "/Users/johncampbell/.codex/generated_images/01a1362e-3500-7192-b049-946eecb3b7a5/exec-a2c9e2cd-2bff-4cda-b744-67888c75547b.png",
+          "accepted": false,
+          "reason": "Character extents crossed equal-cell boundaries."
+        },
+        {
+          "purpose": "accepted composition revision",
+          "prompt": "Edit the supplied Běla fairy sprite sheet. Preserve the SAME character identity, face, painterly rendering quality, cream and sage birch dress, flower wand, three distinct wing poses, soft blink in third frame, and true transparent background. Correct only composition: shrink each complete character to 72% of its current size, then center it exactly within its own one-third-width cell. Every wing tip, finger, shoe, and flower must be at least 50 pixels from a vertical cell edge. In a 1536x1024 canvas, character centers must be x=256,768,1280; all shoes share y=860 baseline. Leave much more fully transparent empty space between the THREE figures. Wings in frame 1 and frame 3 should fit between x=80..432 and corresponding offsets. Absolutely no portion of a figure crosses x=512 or x=1024. Do not add scenery, backdrop, paper, glow, shadow, text, or other elements. Keep the image actually transparent, no painted fake transparency.",
+          "references": [
+            "/Users/johncampbell/.codex/generated_images/01a1362e-3500-7192-b049-946eecb3b7a5/exec-a2c9e2cd-2bff-4cda-b744-67888c75547b.png"
+          ],
+          "source": "/Users/johncampbell/.codex/generated_images/01a1362e-3500-7192-b049-946eecb3b7a5/exec-4d7c2cbc-630e-447d-8453-07df1e50979c.png",
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "character": "Jitřenka",
+      "asset": "public/assets/characters/fairy-ridge-painted.png",
+      "prompts": [
+        {
+          "purpose": "initial generation",
+          "prompt": "Use case: illustration-story. Create one transparent PNG game sprite sheet with exactly THREE animation frames of Jitřenka, an adult female Czech meadow fairy, in one row of three equal cells.\nImage 1 is a layout and rendering-quality reference: follow its generous transparent gutters, small full-body scale, aligned feet, and three subtle wing poses. Image 2 is only a painted Czech storybook style reference. Create a DIFFERENT fairy identity than either reference.\nJitřenka has copper-red wavy shoulder-length hair, warm peach skin, a warm joyful adult face with a cheerful smile, a small crown of pale meadow flowers, and a modest peach and muted coral knee-length layered petal dress with short soft sleeves and restrained Czech botanical embroidery. Coral/sage soft slippers. Keep believable adult anatomy, defined fingers, detailed face and hair, beautifully shaded soft fabric, and high-fidelity painterly brushwork. Her special wings are broad rounded SUNRISE MOTH wings, four lobes, peach/cream/gold translucent membranes and modest natural moth markings. Not leaf wings, not dragonfly wings. She carries a short twig wand tipped with one small pale golden flower in her right hand. Her left hand rests gently near her waist.\nFrames left to right: neutral open wings and bright eyes; gentle half-flutter with wings slightly folded inward; wings returning open and a soft blink. Keep body stance, face identity, head size, foot position, and physical scale constant.\nCanvas 1536x1024, three 512x1024 cells. Center figures at x=256,768,1280. Feet aligned at y about 840, hair top about y=205, maximum complete figure including wings width 380 pixels. Every wing, wand, and hand must stay within its cell with at least 50 pixels fully transparent horizontal padding. Full body, complete wings and feet, no clipping.\nTrue transparent alpha backdrop. No backdrop, painted paper, ground, ground shadow, glow, glitter, borders, grid, text, logos, or watermark. No sexualized costume, child anatomy, flat vector art, or cartoon outlines.",
+          "references": [
+            "/Users/johncampbell/.codex/generated_images/01a1362e-3500-7192-b049-946eecb3b7a5/exec-4d7c2cbc-630e-447d-8453-07df1e50979c.png",
+            "public/assets/characters/portraits.png"
+          ],
+          "source": "/Users/johncampbell/.codex/generated_images/01a1362e-3500-7192-b049-946eecb3b7a5/exec-e140f8ba-b174-4915-9da0-4d98cbb7df3c.png",
+          "accepted": false,
+          "reason": "Wings too close to equal-cell boundaries."
+        },
+        {
+          "purpose": "accepted composition revision",
+          "prompt": "Edit only the composition of the supplied Jitřenka sprite sheet. Preserve the SAME adult fairy identity, face, copper hair, peach/coral clothing, moth wings, flower wand, three subtle wing states, third-frame blink, and high-quality painterly rendering. Scale EACH complete fairy down to 75% of her current size. Center the resulting THREE figures at x=256,768,1280 of a 1536x1024 transparent canvas. All shoes share y=840 baseline. Wing span must be under 380 pixels, leaving completely transparent gaps of 100 pixels or more between figures. Leave at least 50 pixels of completely transparent space inside both vertical edges of EACH 512-pixel cell. No part of any wing, hair, wand, or dress crosses x=512 or x=1024. Keep complete figures. Do not add any backdrop, gradient, glow, shadows, paper, text, scenery, or decorative clutter. The background must be true transparent alpha.",
+          "references": [
+            "/Users/johncampbell/.codex/generated_images/01a1362e-3500-7192-b049-946eecb3b7a5/exec-e140f8ba-b174-4915-9da0-4d98cbb7df3c.png"
+          ],
+          "source": "/Users/johncampbell/.codex/generated_images/01a1362e-3500-7192-b049-946eecb3b7a5/exec-f3417fb1-2fe6-45a1-8c26-3cae9e7843bd.png",
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "character": "Rusalka",
+      "asset": "public/assets/characters/fairy-stream-painted.png",
+      "prompts": [
+        {
+          "purpose": "initial generation",
+          "prompt": "Use case: illustration-story. Create a high-fidelity softly painted Czech storybook game sprite sheet of Rusalka, a friendly adult female brook fairy, with THREE subtle animation frames in one row on true transparent alpha. References show the desired painterly quality and three-cell layout only. Rusalka must be a different person.\nShe has long flowing DARK TEAL wavy hair, a small pale-green reed-leaf crown, warm light skin, a gently amused adult face, blue-green eyes, and an elegant modest knee-length BLUE-GREEN and muted AQUA dress with layered water-leaf panels, soft short sleeves, and restrained pale embroidery. Teal soft slippers. Natural adult body proportions, detailed hands, fine brushwork, modeled skin, and believable fabric. Four long slender TRANSPARENT DRAGONFLY wings with delicate fine veins, pale aqua highlights, and clearly translucent membranes. They must be insect dragonfly wings, not leaves or broad butterfly/moth wings. She holds a short twig flower wand tipped with a small pale mint-white blossom in her right hand. Her left arm extends in a graceful light conversational gesture.\nThree frames: 1 neutral open wings, eyes open; 2 a gentle half-flutter with wings partly folded inward and slightly lifted; 3 return to open wings with soft blink. Same body pose, same face identity, same head size, same physical scale, exactly aligned shoes in all frames. Generally facing forward/slightly right.\nComposition: 1536x1024 wide canvas, three 512x1024 cells. Figures should be SMALL with very generous empty margins, centered at x=256,768,1280. Feet at y=840 and hair top at about y=220. No complete silhouette wider than 370 pixels including wings, wand, and hands. Wing tips may NOT cross x=512 or x=1024. At least 60 pixels fully transparent on each side within each cell. Complete wings and feet, never cropped.\nTrue transparent alpha, including the delicate wing membranes. No visible backdrop, paper, gradient, scenery, ground shadow, glitter, glow, lines, text, logo, or watermark. No child proportions, sexualized costume, flat vector drawing, cartoon outlines, or ornate clutter.",
+          "references": [
+            "/Users/johncampbell/.codex/generated_images/01a1362e-3500-7192-b049-946eecb3b7a5/exec-4d7c2cbc-630e-447d-8453-07df1e50979c.png",
+            "public/assets/characters/portraits.png"
+          ],
+          "source": "/Users/johncampbell/.codex/generated_images/01a1362e-3500-7192-b049-946eecb3b7a5/exec-fb767393-24d2-45ec-80f3-3f40aa7310be.png",
+          "accepted": false,
+          "reason": "Wings and hands too close to equal-cell boundaries."
+        },
+        {
+          "purpose": "accepted composition revision",
+          "prompt": "Edit ONLY the composition of the supplied Rusalka game sprite sheet to provide wider transparent gutters. Preserve the SAME adult woman, face, dark teal hair, blue-green dress, detailed dragonfly wings, flower wand, painterly quality, body pose, three subtle wing states, and third-frame soft blink. Reduce EACH entire figure uniformly to 70% of the current size and place the three figures at the exact centers of three equal cells. On a 1536x1024 canvas the centers are x=256,768,1280 and the shoes share y=840. Keep complete wings, hands, wand, and shoes. The full width of each figure including wings must be under 380 pixels. Leave at least 50 pixels truly transparent between every figure part and its cell edge. No nontransparent content at x=0,512,1024,1535. The background is actual transparent alpha with no paper, backdrop, haze, glow, ground, ground shadow, border, text, or scenery.",
+          "references": [
+            "/Users/johncampbell/.codex/generated_images/01a1362e-3500-7192-b049-946eecb3b7a5/exec-fb767393-24d2-45ec-80f3-3f40aa7310be.png"
+          ],
+          "source": "/Users/johncampbell/.codex/generated_images/01a1362e-3500-7192-b049-946eecb3b7a5/exec-05a0f3f0-a906-4e23-a994-a85086b9de11.png",
+          "accepted": true
+        }
+      ]
+    }
+  ]
+}

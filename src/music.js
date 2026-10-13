@@ -148,6 +148,7 @@ export function arrange(tune, lead = 'violin') {
   return { events: events.sort((a, b) => a.at - b.at), beat: 60 / tune.tempo, beats: at, boundaries };
 }
 export const SCORES = Object.fromEntries(Object.entries(TUNES).map(([id, tune]) => [id, arrange(tune, id === 'woodland' ? 'clarinet' : 'violin')]));
+export const TITLE_SCORE = arrange({ ...TUNES.growth, octave: 0 }, 'clarinet');
 export const ANIMAL_SCORES = {
   fox: arrange({ measures: FOX, tempo: 108 }, 'clarinet'),
   owl: arrange({ measures: OWL, tempo: 72 }, 'clarinet'),
@@ -156,6 +157,7 @@ export const ANIMAL_SCORES = {
 };
 export function scoreFor(game) {
   if (ANIMAL_SCORES[game.conversation]) return ANIMAL_SCORES[game.conversation];
-  if (game.phase === 'intro' || game.scene === 'house') return SCORES.growth;
+  if (game.phase === 'intro') return TITLE_SCORE;
+  if (game.scene === 'house') return SCORES.growth;
   return SCORES[musicZoneAt(game.player)];
 }

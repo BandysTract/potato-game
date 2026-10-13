@@ -311,8 +311,7 @@ export function createWorld(container) {
   const occluders = [];
   const trunkGeometry = new THREE.CylinderGeometry(.23, .38, 1, 7);
   const crownGeometry = new THREE.IcosahedronGeometry(1, 1);
-  const firGeometry = new THREE.ConeGeometry(1, 1, 9);
-  geometries.add(trunkGeometry); geometries.add(crownGeometry); geometries.add(firGeometry);
+  geometries.add(trunkGeometry); geometries.add(crownGeometry);
   function tree(x, z, kind, size = 1) {
     const isBirch = kind === 'birch';
     const height = (isBirch ? 7.3 : 7.8) * size;
@@ -321,22 +320,25 @@ export function createWorld(container) {
     shadow(x + 1.1, z + .4, width * 1.35, width * .8, .3);
     const object = new THREE.Group(); object.position.set(x, 0, z); outdoors.add(object);
     const bark = solidMaterial(isBirch ? '#d8d9bc' : '#776344', { map: woodMap, transparent: true });
-    const leaves = solidMaterial(isBirch ? '#96ae64' : '#426b58', { transparent: true, flatShading: false });
+    const leaves = isBirch ? solidMaterial('#96ae64', { transparent: true, flatShading: false }) : null;
     const trunk = new THREE.Mesh(trunkGeometry, bark); trunk.scale.set(size, height * .7, size);
     trunk.position.y = height * .35; object.add(trunk);
     const crowns = 5;
-    const fadeMaterials = [bark, leaves];
+    const fadeMaterials = isBirch ? [bark, leaves] : [bark];
     for (let i = 0; i < crowns; i++) {
-      const crown = new THREE.Mesh(isBirch ? crownGeometry : firGeometry, leaves);
       const radius = isBirch ? width * (.24 + rng() * .07) : width * (.46 - i * .07);
-      crown.position.set(isBirch ? Math.sin(i * 2.4) * width * .2 : 0,
-        isBirch ? height * (.52 + i * .08) : height * (.38 + i * .15),
-        isBirch ? Math.cos(i * 2.4) * width * .16 : 0);
-      crown.scale.set(radius * .3, isBirch ? height * .11 : height * .11, radius * .3);
-      crown.rotation.y = i * .7; object.add(crown);
       const leafMat = new THREE.SpriteMaterial({ map: painted.foliage[(isBirch ? 2 : 0) + i % 2], transparent: true, alphaTest: .1, depthWrite: false });
       materials.add(leafMat); fadeMaterials.push(leafMat);
-      const spray = new THREE.Sprite(leafMat); spray.position.copy(crown.position);
+      const spray = new THREE.Sprite(leafMat);
+      spray.position.set(isBirch ? Math.sin(i * 2.4) * width * .2 : 0,
+        isBirch ? height * (.52 + i * .08) : height * (.38 + i * .15),
+        isBirch ? Math.cos(i * 2.4) * width * .16 : 0);
+      if (isBirch) {
+        const crown = new THREE.Mesh(crownGeometry, leaves);
+        crown.position.copy(spray.position);
+        crown.scale.set(radius * .3, height * .11, radius * .3);
+        crown.rotation.y = i * .7; object.add(crown);
+      }
       spray.scale.set(radius * (isBirch ? 2.7 : 2.9), radius * (isBirch ? 2.7 : 2.2), 1);
       object.add(spray);
     }
@@ -513,7 +515,7 @@ export function createWorld(container) {
     }
     const glow = sprite(maps.glow, target.x, target.z, 4.5, 4.5, 1.9, { color: target.color, blending: THREE.AdditiveBlending, opacity: .23 });
     glow.center.set(.5, .5);
-    const object = sprite(maps.fairies[i], target.x, target.z, 1.9, 2.4, 1.0);
+    const object = sprite(painted.fairies[i][0], target.x, target.z, 2.4, 2.4, 1.0);
     object.name = 'fairy';
     const halo = mesh(new THREE.RingGeometry(1.15, 1.19, 48), material(target.color, { transparent: true, opacity: .7, side: THREE.DoubleSide, depthWrite: false }), target.x, .07, target.z);
     halo.rotation.x = -Math.PI / 2;
@@ -525,11 +527,12 @@ export function createWorld(container) {
 
   const creatureObjects = CREATURES.map((target, i) => {
     const kind = target.id;
-    const height = kind === 'deer' ? 3.2 : kind === 'badger' ? 1.9 : 2.25;
-    const object = sprite(maps[kind], target.x, target.z, height * (kind === 'badger' ? 1.3 : .8), height);
+    const height = kind === 'deer' ? 3.5 : kind === 'badger' ? 2.8 : 2.5;
+    const object = sprite(painted.creatures[i][0], target.x, target.z, height, height);
     shadow(target.x, target.z, 1.8, 1, .6);
-    const indicator = sprite(maps.conversation, target.x, target.z, .75, .75, height + .15);
-    return { ...target, object, indicator, height, index: i, width: height * (kind === 'badger' ? 1.3 : .8) };
+    const indicatorHeight = kind === 'badger' ? 1.6 : height;
+    const indicator = sprite(maps.conversation, target.x, target.z, .75, .75, indicatorHeight + .15);
+    return { ...target, object, indicator, indicatorHeight, height, index: i, width: height };
   });
 
   // The front and right walls are cut away so every family member stays visible.
@@ -742,10 +745,13 @@ export function createWorld(container) {
     const direction = player.direction || 0;
     const idleFrame = reducedMotion.matches ? 0 : motionTime % 5.3 > 5.13 ? 1 : Math.floor(motionTime / 3) % 2 ? 2 : 0;
     const action = game.actionAnimation;
-    const actionFrame = action?.kind === 'gather' ? 1 + Math.min(2, Math.floor(action.progress * 3))
-      : action?.kind === 'pet' ? 1 : action?.kind === 'prepare' ? 5 : action?.kind === 'cook' ? 6 : action?.kind === 'serve' ? 7 : 0;
+    const actionFrame = action?.kind === 'prepare' ? 5 : action?.kind === 'cook' ? 6 : action?.kind === 'serve' ? 7 : 0;
+    const petFacesLeft = HOUSE_CAT.x - player.x - (HOUSE_CAT.z - player.z) < 0;
+    const actionMap = action?.kind === 'gather' ? painted.gather[Math.min(5, Math.floor(action.progress * 6))]
+      : action?.kind === 'pet' ? painted.pet[Math.min(5, Math.floor(action.progress * 6)) + (petFacesLeft ? 6 : 0)]
+      : painted.actions[actionFrame];
     const hanaMap = transformed ? painted.actions[8] : game.activeSong ? painted.actions[4]
-      : action ? painted.actions[actionFrame] : player.moving || direction > 1 ? painted.walk[direction * painted.walkFrameCount + frame] : painted.idle[idleFrame + (direction === 1 ? 6 : 0)];
+      : action ? actionMap : player.moving || direction > 1 ? painted.walk[direction * painted.walkFrameCount + frame] : painted.idle[idleFrame + (direction === 1 ? 6 : 0)];
     if (hana.material.map !== hanaMap) hana.material.map = hanaMap;
     if (player.moving && !reducedMotion.matches) hana.position.y += Math.abs(Math.sin(walkPhase * Math.PI * 2)) * .045;
     hana.position.y += lift;
@@ -807,7 +813,8 @@ export function createWorld(container) {
       target.object.position.y = 1 + Math.sin(motionTime * 1.7 + target.index * 2) * .18;
       target.glow.position.y = 2 + Math.sin(motionTime * 1.7 + target.index * 2) * .18;
       target.glow.material.opacity = .23 + Math.sin(motionTime * 1.3 + target.index) * .05;
-      const fairyMap = reducedMotion.matches ? maps.fairies[target.index] : maps.fairyFlutter[target.index][Math.floor(motionTime * 5 + target.index) % 2];
+      const fairyFrame = reducedMotion.matches ? 0 : [0, 1, 2, 1][Math.floor(motionTime * 5 + target.index) % 4];
+      const fairyMap = painted.fairies[target.index][fairyFrame];
       if (target.object.material.map !== fairyMap) target.object.material.map = fairyMap;
       const near = Math.hypot(player.x - FAIRIES[target.index].x, player.z - FAIRIES[target.index].z) < 3.5;
       target.halo.material.opacity = near ? .65 + (game.activeSong?.progress || 0) * .3 : .4;
@@ -839,9 +846,9 @@ export function createWorld(container) {
       const turn = near ? (player.x - player.z > target.x - target.z ? 1 : -1) : 1;
       target.object.scale.set(target.width, target.height * (1 + (reducedMotion.matches ? 0 : Math.sin(motionTime * (target.id === 'badger' ? 1.3 : 2) + target.index) * .012)), 1);
       const frame = reducedMotion.matches ? 0 : Math.floor(motionTime * (near ? 1.5 : .5) + target.index) % 3;
-      target.object.material.map = (turn < 0 ? maps.creatureMirrors : maps.creatureFrames)[target.index][frame];
+      target.object.material.map = painted.creatures[target.index][frame + (turn < 0 ? 3 : 0)];
       target.indicator.material.opacity = (game.talked || []).includes(target.id) ? .32 : .9;
-      target.indicator.position.y = target.height + .15 + Math.sin(motionTime * 1.6 + target.index) * .06;
+      target.indicator.position.y = target.indicatorHeight + .15 + Math.sin(motionTime * 1.6 + target.index) * .06;
     }
     // Each sprite pivots at its existing bottom center, leaving feet and roots fixed.
     for (const target of windSprites) {

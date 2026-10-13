@@ -7,7 +7,7 @@ export function createPaintedCharacters() {
   const jobs = [];
   // fitGroup names the character or walking direction of each cell. Mirrored
   // frames repeat the first cells, facing the other way.
-  function atlas(url, columns, rows, fitGroup = null, mirrored = 0, columnEdges = null, rowEdges = null) {
+  function atlas(url, columns, rows, fitGroup = null, mirrored = 0, columnEdges = null, rowEdges = null, fitWidth = false) {
     const cells = columns * rows;
     const frames = Array.from({ length: cells + mirrored }, () => {
       const canvas = document.createElement('canvas');
@@ -53,14 +53,17 @@ export function createPaintedCharacters() {
         // Each group's tallest pose sets its scale, so a standing figure keeps one
         // height across sheets, even beside a taller character.
         const tallest = new Map();
+        const widest = new Map();
         bounds.forEach((bound, index) => {
           const group = fitGroup?.(index);
           tallest.set(group, Math.max(tallest.get(group) || 0, bound.bottom - bound.top + 1));
+          widest.set(group, Math.max(widest.get(group) || 0, bound.maxX - bound.minX + 1));
         });
         frames.forEach((texture, index) => {
           const cell = index % cells;
           const { minX, maxX, bottom } = bounds[cell];
-          const scale = 350 / (fitGroup ? tallest.get(fitGroup(cell)) : cellHeight);
+          const scale = Math.min(350 / (fitGroup ? tallest.get(fitGroup(cell)) : cellHeight),
+            fitWidth ? 350 / widest.get(fitGroup?.(cell)) : Infinity);
           const target = texture.image.getContext('2d');
           if (index >= cells) target.setTransform(-1, 0, 0, 1, 384, 0);
           // A shared scale preserves crouching and sitting height. Align feet and
@@ -84,6 +87,12 @@ export function createPaintedCharacters() {
     ...atlas('/assets/characters/hana-walk-back.png', 4, 2, () => 'hana', walkFrameCount, null, [0, .47, 1]),
   ];
   const actions = atlas('/assets/characters/actions.png', 4, 3, frame => frame < 9 ? 'hana' : 'john');
+  const gather = atlas('/assets/characters/hana-gather.png', 3, 2, () => 'hana', 0, null, [0, .47, 1]);
+  const pet = atlas('/assets/characters/hana-pet.png', 3, 2, () => 'hana', 6);
+  const fairies = ['birch', 'ridge', 'stream'].map(kind =>
+    atlas(`/assets/characters/fairy-${kind}-painted.png`, 3, 1, () => kind, 0, null, null, true));
+  const creatures = ['fox', 'owl', 'deer', 'badger'].map(kind =>
+    atlas(`/assets/characters/${kind}-painted.png`, 3, 1, () => kind, 3, null, null, true));
   // The repair strip has wider room for Hana’s crown and bouquet.
   const headroom = atlas('/assets/characters/actions-headroom.png', 3, 1, frame => frame === 0 ? 'hana' : 'john', 0, [0, .42, .67, 1]);
 
@@ -91,7 +100,7 @@ export function createPaintedCharacters() {
   // Rows are Hana, then John. Frames 6 to 8 mirror Hana's idle frames to face left.
   const idle = atlas('/assets/characters/idle.png', 3, 2, frame => Math.floor(frame / 3), 3);
   const foliage = atlas('/assets/characters/foliage.png', 2, 2);
-  return { walk, walkFrameCount, actions: [...actions.slice(0, 8), ...headroom, actions[11]], cat, idle, foliage, ready: Promise.all(jobs), dispose() {
+  return { walk, walkFrameCount, gather, pet, fairies, creatures, actions: [...actions.slice(0, 8), ...headroom, actions[11]], cat, idle, foliage, ready: Promise.all(jobs), dispose() {
     disposed = true;
     textures.forEach(texture => texture.dispose());
   } };

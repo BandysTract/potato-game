@@ -2,15 +2,18 @@ import { scoreFor, SCORES } from './music.js';
 import { songPhrase } from './songs.js';
 
 const frequency = (note) => 440 * 2 ** ((note - 69) / 12);
-// Mouth resonances move from a rounded “oo” into an open “ah” and back.
-const VOWELS = [[430, 980, 2450, 3300], [670, 1250, 2650, 3500], [780, 1400, 2850, 3600], [490, 1100, 2500, 3350]];
-const VOICE_LEVELS = [.23, .19, .22, .17];
-const BREATH_LEVELS = [.025, .02, .018, .05];
+// Rounded, closed-mouth resonances keep the humming gentle rather than brassy.
+const VOWELS = [[300, 900, 2100, 2900], [360, 1000, 2200, 3000], [420, 1150, 2350, 3100], [320, 950, 2150, 2950]];
+const VOICE_LEVELS = [.5, .47, .49, .43];
+const BREATH_LEVELS = [.014, .012, .01, .018];
 export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {}) {
   let context;
   let master;
   let music;
   let themeGain;
+  let roomSend;
+  let room;
+  let roomImpulse;
   let reedWave;
   let glottalWave;
   let breathBuffer;
@@ -35,6 +38,23 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
   let ducked = false;
   const voices = new Set();
   const canPlay = () => context?.state === 'running' && enabled && !paused && !disposed;
+
+  function resetRoom() {
+    if (!roomSend) return;
+    roomSend.disconnect();
+    room?.disconnect();
+    room = null;
+    if (disposed) return;
+    room = context.createConvolver();
+    room.normalize = false;
+    room.buffer = roomImpulse;
+    roomSend.connect(room);
+    room.connect(master);
+    // Retiring voices get 40 ms to fade. Their old sound must not refill the room.
+    roomSend.gain.cancelScheduledValues(context.currentTime);
+    roomSend.gain.setValueAtTime(0, context.currentTime);
+    roomSend.gain.setValueAtTime(.18, context.currentTime + .05);
+  }
 
   function track(sources, nodes, gain, group = 'music') {
     const voice = { sources, nodes, gain, group, cancelled: false };
@@ -63,6 +83,7 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
 
   function silence(immediate = false) {
     voices.forEach((voice) => retire(voice, immediate));
+    resetRoom();
     singer = null;
     ducked = false;
     scoreStart = null;
@@ -145,16 +166,24 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
     }
     source.connect(gain);
     const sustained = part === 'violin' || part === 'clarinet';
+    const release = sustained ? .12 : 0;
     gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(level, start + Math.min(duration * .2, sustained ? .025 : .008));
-    if (sustained) gain.gain.setValueAtTime(level * .9, start + duration * .8);
+    gain.gain.linearRampToValueAtTime(level, start + Math.min(duration * .2, sustained ? .045 : .008));
+    if (sustained) {
+      gain.gain.linearRampToValueAtTime(level * .88, start + duration * .75);
+      gain.gain.linearRampToValueAtTime(level * .7, start + duration);
+    }
     if (sample && part === 'tambourine') gain.gain.setValueAtTime(level, start + Math.min(.035, duration * .6));
-    gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
-    gain.connect(group === 'music' ? themeGain : master);
-    track([source], [source, gain], gain, group);
+    gain.gain.exponentialRampToValueAtTime(.0001, start + duration + release);
+    const pan = context.createStereoPanner();
+    pan.pan.value = { violin: -.24, clarinet: .18, bass: -.05, tambourine: .32 }[part] || 0;
+    gain.connect(pan);
+    pan.connect(group === 'music' ? themeGain : master);
+    if (group !== 'music') pan.connect(roomSend);
+    track([source], [source, gain, pan], gain, group);
     if (sample) source.start(start, sample.startOffset ?? 0);
     else source.start(start);
-    source.stop(start + duration + .02);
+    source.stop(start + duration + release + .02);
   }
 
   function startSinger(midi, syllable, start) {
@@ -163,16 +192,16 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
     const gain = context.createGain();
     const throat = context.createBiquadFilter();
     throat.type = 'lowpass';
-    throat.frequency.value = 4200;
+    throat.frequency.value = 2200;
     throat.Q.value = .7;
     const resonances = [];
     const formants = VOWELS[syllable].map((value, index) => {
       const filter = context.createBiquadFilter();
       filter.type = 'bandpass';
       filter.frequency.value = value;
-      filter.Q.value = [4, 6, 8, 9][index];
+      filter.Q.value = [2.5, 4, 6, 7][index];
       const resonance = context.createGain();
-      resonance.gain.value = [1, .8, .45, .18][index];
+      resonance.gain.value = [1, .55, .15, .05][index];
       throat.connect(filter);
       filter.connect(resonance);
       resonance.connect(gain);
@@ -182,7 +211,7 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
     // One harmonic-rich vocal-fold source keeps the sound intimate and solo.
     const voice = context.createOscillator();
     voice.setPeriodicWave(glottalWave);
-    voice.frequency.setValueAtTime(frequency(midi - .35), now);
+    voice.frequency.setValueAtTime(frequency(midi - .18), now);
     voice.frequency.exponentialRampToValueAtTime(frequency(midi), now + .11);
     voice.detune.setValueAtTime(-3, now);
     voice.detune.linearRampToValueAtTime(2, now + .32);
@@ -198,7 +227,7 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
     breathFilter.frequency.value = 1800;
     breathFilter.Q.value = .8;
     const breathGain = context.createGain();
-    breathGain.gain.setValueAtTime(.075, now);
+    breathGain.gain.setValueAtTime(.035, now);
     breathGain.gain.linearRampToValueAtTime(BREATH_LEVELS[syllable], now + .18);
     breath.connect(breathFilter);
     breathFilter.connect(breathGain);
@@ -209,14 +238,15 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
     const depth = context.createGain();
     depth.gain.setValueAtTime(0, now);
     depth.gain.setValueAtTime(0, now + .22);
-    depth.gain.linearRampToValueAtTime(14, now + .6);
-    depth.gain.linearRampToValueAtTime(10, now + 2.2);
+    depth.gain.linearRampToValueAtTime(8, now + .6);
+    depth.gain.linearRampToValueAtTime(6, now + 2.2);
     vibrato.connect(depth);
     depth.connect(voice.detune);
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(.13, now + .055);
     gain.gain.linearRampToValueAtTime(VOICE_LEVELS[syllable], now + .18);
     gain.connect(master);
+    gain.connect(roomSend);
     const sources = [voice, breath, vibrato];
     singer = track(sources, [...sources, throat, ...formants, ...resonances, breathFilter, breathGain, depth, gain], gain, 'performance');
     singer.pitch = voice;
@@ -268,6 +298,8 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
 
   function scheduleMusic(selected) {
     const now = context.currentTime;
+    // Let the recordings supply the opening notes, but never wait indefinitely.
+    if (sampleState === 'loading' && now < 1) return;
     const horizon = now + 1;
     if (scoreStart === null) { currentScore = selected; scoreStart = now + .025; scoreEvent = 0; }
     if (selected !== currentScore && transition?.score !== selected) {
@@ -329,7 +361,7 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
         themeGain.connect(music);
         const wave = (harmonics) => context.createPeriodicWave(new Float32Array(harmonics.length), new Float32Array(harmonics));
         reedWave = wave([0, 1, .3, .08, .1, .03, .04, .015]);
-        glottalWave = wave(Array.from({ length: 33 }, (_, harmonic) => harmonic ? 1 / harmonic ** 1.5 : 0));
+        glottalWave = wave(Array.from({ length: 33 }, (_, harmonic) => harmonic ? 1 / harmonic ** 2 : 0));
         breathBuffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
         const breath = breathBuffer.getChannelData(0);
         let seed = 17;
@@ -338,6 +370,23 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
           breath[sample] = seed / 2147483648 - 1;
         }
         stringWave = wave([0, 1, .16, .11, .06, .025, .014, .008, .004, .002]);
+        // One short stereo room is shared by every voice, with no downloaded asset.
+        roomImpulse = context.createBuffer(2, Math.floor(context.sampleRate * .65), context.sampleRate);
+        for (let channel = 0; channel < 2; channel++) {
+          const data = roomImpulse.getChannelData(channel);
+          let energy = 0, smooth = 0;
+          for (let i = Math.floor(context.sampleRate * .015); i < data.length; i++) {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            smooth = smooth * .65 + (seed / 2147483648 - 1) * .35;
+            data[i] = smooth * Math.exp(-7 * i / data.length);
+            energy += data[i] ** 2;
+          }
+          const scale = .65 / Math.sqrt(energy);
+          for (let i = 0; i < data.length; i++) data[i] *= scale;
+        }
+        roomSend = context.createGain();
+        music.connect(roomSend);
+        resetRoom();
         context.onstatechange = syncEnabled;
         loadSamples();
       }
@@ -356,13 +405,14 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
       return enabled;
     },
     setPaused(next) {
+      if (paused === next) return;
       paused = next;
       if (paused) silence();
       volume();
     },
     tick(game) {
       if (!canPlay()) {
-        if (voices.size || scoreStart !== null) silence();
+        if (scoreStart !== null || [...voices].some(voice => !voice.cancelled)) silence();
         return;
       }
       if (lastGame !== game) {

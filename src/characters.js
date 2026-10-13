@@ -7,7 +7,7 @@ export function createPaintedCharacters() {
   const jobs = [];
   // fitGroup names the character or walking direction of each cell. Mirrored
   // frames repeat the first cells, facing the other way.
-  function atlas(url, columns, rows, fitGroup = null, mirrored = 0, columnEdges = null, rowEdges = null, fitWidth = false) {
+  function atlas(url, columns, rows, fitGroup = null, mirrored = 0, columnEdges = null, rowEdges = null, fitWidth = false, anchorFeet = false) {
     const cells = columns * rows;
     const frames = Array.from({ length: cells + mirrored }, () => {
       const canvas = document.createElement('canvas');
@@ -48,7 +48,11 @@ export function createPaintedCharacters() {
               minX = Math.min(minX, x); maxX = Math.max(maxX, x); top = Math.min(top, y); bottom = Math.max(bottom, y);
             }
           }
-          return { minX, maxX, top, bottom };
+          let footLeft = scratch.width, footRight = 0;
+          if (anchorFeet) for (let y = Math.floor(bottom - (bottom - top) * .12); y <= bottom; y++) for (let x = 0; x < scratch.width; x++) {
+            if (pixels[(y * scratch.width + x) * 4 + 3] > 100) { footLeft = Math.min(footLeft, x); footRight = Math.max(footRight, x); }
+          }
+          return { minX, maxX, top, bottom, centerX: anchorFeet ? (footLeft + footRight) / 2 : (minX + maxX) / 2 };
         });
         // Each group's tallest pose sets its scale, so a standing figure keeps one
         // height across sheets, even beside a taller character.
@@ -61,7 +65,7 @@ export function createPaintedCharacters() {
         });
         frames.forEach((texture, index) => {
           const cell = index % cells;
-          const { minX, maxX, bottom } = bounds[cell];
+          const { centerX, bottom } = bounds[cell];
           const scale = Math.min(350 / (fitGroup ? tallest.get(fitGroup(cell)) : cellHeight),
             fitWidth ? 350 / widest.get(fitGroup?.(cell)) : Infinity);
           const target = texture.image.getContext('2d');
@@ -69,7 +73,7 @@ export function createPaintedCharacters() {
           // A shared scale preserves crouching and sitting height. Align feet and
           // centers without stretching a bent pose into a full-height person.
           const rect = rectFor(cell);
-          target.drawImage(image, ...rect, 192 - (minX + maxX) / 2 * scale,
+          target.drawImage(image, ...rect, 192 - centerX * scale,
             380 - bottom * scale, rect[2] * scale, rect[3] * scale);
           texture.needsUpdate = true;
         });
@@ -88,6 +92,7 @@ export function createPaintedCharacters() {
   ];
   const actions = atlas('/assets/characters/actions.png', 4, 3, frame => frame < 9 ? 'hana' : 'john');
   const gather = atlas('/assets/characters/hana-gather.png', 3, 2, () => 'hana', 0, null, [0, .47, 1]);
+  const sing = atlas('/assets/characters/hana-sing.png', 3, 2, () => 'hana', 6, null, null, false, true);
   const pet = atlas('/assets/characters/hana-pet.png', 3, 2, () => 'hana', 6);
   const fairies = ['birch', 'ridge', 'stream'].map(kind =>
     atlas(`/assets/characters/fairy-${kind}-painted.png`, 3, 1, () => kind, 0, null, null, true));
@@ -100,7 +105,7 @@ export function createPaintedCharacters() {
   // Rows are Hana, then John. Frames 6 to 8 mirror Hana's idle frames to face left.
   const idle = atlas('/assets/characters/idle.png', 3, 2, frame => Math.floor(frame / 3), 3);
   const foliage = atlas('/assets/characters/foliage.png', 2, 2);
-  return { walk, walkFrameCount, gather, pet, fairies, creatures, actions: [...actions.slice(0, 8), ...headroom, actions[11]], cat, idle, foliage, ready: Promise.all(jobs), dispose() {
+  return { walk, walkFrameCount, gather, sing, pet, fairies, creatures, actions: [...actions.slice(0, 8), ...headroom, actions[11]], cat, idle, foliage, ready: Promise.all(jobs), dispose() {
     disposed = true;
     textures.forEach(texture => texture.dispose());
   } };

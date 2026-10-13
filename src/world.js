@@ -3,6 +3,10 @@ import { BOUNDS, BROOK, START, HOME, POTATOES, FAIRIES, CREATURES, TRAILS, OBSTA
 import { createSpriteTextures } from './sprites.js';
 import { createPaintedCharacters } from './characters.js';
 import { getNearby } from './game.js';
+import { barkTexture, treeTrunkGeometry, tearTexture, tearJarTexture, breezeAt } from './forest-art.js';
+import { TUNES, songPhrase } from './songs.js';
+
+const phrases = Object.fromEntries(Object.keys(TUNES).map(id => [id, songPhrase(id)]));
 
 const COLORS = { grass: '#789368', path: '#c8ba8c', rim: '#677e53', water: '#639c9b' };
 
@@ -218,6 +222,8 @@ export function createWorld(container) {
   }
   const floorMap = groundTexture();
   const woodMap = surfaceTexture('wood'), plasterMap = surfaceTexture('plaster'), clothMap = surfaceTexture('cloth'), pathMap = surfaceTexture('path'), windowMap = surfaceTexture('window', maps);
+  const firBark = barkTexture(), birchBark = barkTexture(true), tearMap = tearTexture();
+  const jarMaps = Array.from({ length: 4 }, (_, count) => [tearJarTexture(count), tearJarTexture(count, true)]);
   const ground = mesh(new THREE.PlaneGeometry(180, 180), material('#ffffff', { map: floorMap }), 0, 0, 0);
   ground.rotation.x = -Math.PI / 2;
 
@@ -309,7 +315,7 @@ export function createWorld(container) {
   }
 
   const occluders = [];
-  const trunkGeometry = new THREE.CylinderGeometry(.23, .38, 1, 7);
+  const trunkGeometry = treeTrunkGeometry();
   const crownGeometry = new THREE.IcosahedronGeometry(1, 1);
   geometries.add(trunkGeometry); geometries.add(crownGeometry);
   function tree(x, z, kind, size = 1) {
@@ -319,12 +325,12 @@ export function createWorld(container) {
     shadow(x + .25, z + .15, width * .8, width * .46, .55);
     shadow(x + 1.1, z + .4, width * 1.35, width * .8, .3);
     const object = new THREE.Group(); object.position.set(x, 0, z); outdoors.add(object);
-    const bark = solidMaterial(isBirch ? '#d8d9bc' : '#776344', { map: woodMap, transparent: true });
-    const leaves = isBirch ? solidMaterial('#96ae64', { transparent: true, flatShading: false }) : null;
-    const trunk = new THREE.Mesh(trunkGeometry, bark); trunk.scale.set(size, height * .7, size);
-    trunk.position.y = height * .35; object.add(trunk);
+    const bark = solidMaterial('#ffffff', { map: isBirch ? birchBark : firBark, transparent: true });
+    const trunk = new THREE.Mesh(trunkGeometry, bark); trunk.scale.set(size, height * .94, size);
+    trunk.name = 'tree-trunk'; object.add(trunk);
     const crowns = 5;
-    const fadeMaterials = isBirch ? [bark, leaves] : [bark];
+    const branches = [];
+    const fadeMaterials = [bark];
     for (let i = 0; i < crowns; i++) {
       const radius = isBirch ? width * (.24 + rng() * .07) : width * (.46 - i * .07);
       const leafMat = new THREE.SpriteMaterial({ map: painted.foliage[(isBirch ? 2 : 0) + i % 2], transparent: true, alphaTest: .1, depthWrite: false });
@@ -334,15 +340,21 @@ export function createWorld(container) {
         isBirch ? height * (.52 + i * .08) : height * (.38 + i * .15),
         isBirch ? Math.cos(i * 2.4) * width * .16 : 0);
       if (isBirch) {
-        const crown = new THREE.Mesh(crownGeometry, leaves);
+        // Painted inner boughs give the crown depth without opaque green lumps.
+        const innerMat = leafMat.clone(); innerMat.color.set('#a5b583');
+        materials.add(innerMat); fadeMaterials.push(innerMat);
+        const crown = new THREE.Sprite(innerMat);
         crown.position.copy(spray.position);
-        crown.scale.set(radius * .3, height * .11, radius * .3);
-        crown.rotation.y = i * .7; object.add(crown);
+        crown.position.y += height * .06;
+        crown.scale.set(radius * 2, radius * 2.1, 1);
+        object.add(crown);
+        branches.push({ object: crown, x: crown.position.x, z: crown.position.z });
       }
       spray.scale.set(radius * (isBirch ? 2.7 : 2.9), radius * (isBirch ? 2.7 : 2.2), 1);
       object.add(spray);
+      branches.push({ object: spray, x: spray.position.x, z: spray.position.z });
     }
-    occluders.push({ object, x, z, height, width, kind, fadeMaterials, phase: rng() * 6.28 });
+    occluders.push({ object, x, z, height, width, kind, fadeMaterials, branches, phase: rng() * 6.28 });
     return object;
   }
   // Collision props use the shared obstacle positions. Other trees leave trails clear.
@@ -520,7 +532,11 @@ export function createWorld(container) {
     const halo = mesh(new THREE.RingGeometry(1.15, 1.19, 48), material(target.color, { transparent: true, opacity: .7, side: THREE.DoubleSide, depthWrite: false }), target.x, .07, target.z);
     halo.rotation.x = -Math.PI / 2;
     shadow(target.x, target.z, 1.6, 1, .38);
-    return { id: target.id, object, glow, halo, index: i };
+    const tear = sprite(tearMap, target.x, target.z, .48, .62, 2.5);
+    tear.name = 'fairy-tear'; tear.center.set(.5, .5); tear.visible = false;
+    const tearGlow = sprite(maps.glow, target.x, target.z, 1.1, 1.1, 2.5, { color: '#c5f5ff', opacity: 0, blending: THREE.AdditiveBlending });
+    tearGlow.center.set(.5, .5); tearGlow.visible = false;
+    return { id: target.id, object, glow, halo, tear, tearGlow, index: i, learned: false, tearAge: 4, from: new THREE.Vector3() };
   });
   const homeHalo = mesh(new THREE.RingGeometry(1.2, 1.26, 48), material('#fff0bb', { transparent: true, opacity: .45, side: THREE.DoubleSide, depthWrite: false }), HOME.x, .07, HOME.z);
   homeHalo.rotation.x = -Math.PI / 2;
@@ -662,6 +678,13 @@ export function createWorld(container) {
 
   activeGroup = people;
   const hana = sprite(painted.actions[0], START.x, START.z, 3.15, 3.15, .07);
+  hana.name = 'hana';
+  const tearJar = sprite(jarMaps[0][0], START.x, START.z, .7, .88, 1.05);
+  tearJar.name = 'tear-jar'; tearJar.visible = false;
+  const songMotes = Array.from({ length: 4 }, () => {
+    const mote = sprite(maps.glow, START.x, START.z, .16, .16, 2.2, { color: '#fff1c4', opacity: 0, blending: THREE.AdditiveBlending });
+    mote.name = 'song-mote'; mote.center.set(.5, .5); mote.visible = false; return mote;
+  });
   const hanaShadow = shadow(START.x, START.z, 1.7, 1, .8);
   const radiance = sprite(maps.glow, START.x, START.z, 5.8, 6.2, 1.8, { color: '#ffe8a2', blending: THREE.AdditiveBlending, opacity: 0 });
   radiance.center.set(.5, .5);
@@ -697,8 +720,10 @@ export function createWorld(container) {
   const cameraOffset = new THREE.Vector3();
   const projectedInteraction = new THREE.Vector3(), projectedEdge = new THREE.Vector3();
   const projectedPlayer = new THREE.Vector3(), projectedBase = new THREE.Vector3(), projectedTop = new THREE.Vector3();
+  const tearDestination = new THREE.Vector3();
   let width = 1, height = 1, cameraDistance = 32, elapsedWalk = 0;
   let previousScene = 'outdoors', previousPhase = 'intro', transformationTime = 0;
+  let previousGame = null;
 
   function resize() {
     width = Math.max(container.clientWidth, 1); height = Math.max(container.clientHeight, 1);
@@ -709,6 +734,8 @@ export function createWorld(container) {
   resize();
 
   function update(game, dt, time) {
+    const resetPerformance = previousGame !== game;
+    previousGame = game;
     const player = game.player || START;
     const motionTime = reducedMotion.matches ? 0 : time;
     for (const { insect, wings, x, z } of butterflies) {
@@ -750,7 +777,15 @@ export function createWorld(container) {
     const actionMap = action?.kind === 'gather' ? painted.gather[Math.min(5, Math.floor(action.progress * 6))]
       : action?.kind === 'pet' ? painted.pet[Math.min(5, Math.floor(action.progress * 6)) + (petFacesLeft ? 6 : 0)]
       : painted.actions[actionFrame];
-    const hanaMap = transformed ? painted.actions[8] : game.activeSong ? painted.actions[4]
+    const performance = game.activeSong;
+    const phrase = performance ? phrases[performance.songId] : null;
+    const responseTime = performance ? performance.elapsed - (performance.kind === 'learn' ? phrase.duration : 0) : -1;
+    const note = phrase?.notes.find(note => responseTime >= note.at && responseTime < note.at + note.duration);
+    const sounding = note?.note != null;
+    const singFrame = !sounding ? (responseTime < 0 ? 0 : 5) : reducedMotion.matches ? 2 : [1, 2, 3, 4, 2, 1][Math.floor(responseTime * 2) % 6];
+    const songTarget = performance && (performance.kind === 'learn' ? FAIRIES : SONG_SITES).find(target => target.id === performance.targetId);
+    const singLeft = songTarget && songTarget.x - songTarget.z < player.x - player.z;
+    const hanaMap = transformed ? painted.actions[8] : performance ? painted.sing[singFrame + (singLeft ? 6 : 0)]
       : action ? actionMap : player.moving || direction > 1 ? painted.walk[direction * painted.walkFrameCount + frame] : painted.idle[idleFrame + (direction === 1 ? 6 : 0)];
     if (hana.material.map !== hanaMap) hana.material.map = hanaMap;
     if (player.moving && !reducedMotion.matches) hana.position.y += Math.abs(Math.sin(walkPhase * Math.PI * 2)) * .045;
@@ -758,6 +793,14 @@ export function createWorld(container) {
     const goddessScale = 1 + THREE.MathUtils.smoothstep(transformation, .45, .9) * .12;
     const breath = reducedMotion.matches ? 0 : Math.sin(motionTime * 1.8) * .004;
     hana.scale.set(3.15 * goddessScale, 3.15 * goddessScale * (1 + breath), 1);
+    hana.material.rotation = sounding && !reducedMotion.matches ? Math.sin(responseTime * 2.2) * .012 : 0;
+    songMotes.forEach((mote, i) => {
+      mote.visible = Boolean(sounding && !indoors && !reducedMotion.matches);
+      const travel = (Math.max(0, responseTime) * .7 + i / 4) % 1;
+      const side = singLeft ? -1 : 1;
+      mote.position.set(player.x + side * (.2 + travel * .95) * Math.SQRT1_2, 2.5 + travel * .7, player.z - side * (.2 + travel * .95) * Math.SQRT1_2);
+      mote.material.opacity = Math.sin(travel * Math.PI) * .65;
+    });
     // John takes his seat at the table as soon as Hana starts serving.
     const seated = won || action?.kind === 'serve';
     johnFigure.material.map = seated ? painted.actions[11]
@@ -795,6 +838,11 @@ export function createWorld(container) {
       object.position.y = 2.1 + i * .24 + Math.sin(motionTime * .9 + i) * .1;
     });
     const collectedPotatoes = game.potatoes || [], collectedTears = game.tears || [];
+    const jarSide = direction % 2 ? -1 : 1;
+    // The free-hand side stays separate from the potato basket.
+    tearJar.position.set(player.x + jarSide * .52 + .12, 1.05, player.z - jarSide * .52 + .12);
+    let jarAge = 4;
+    let receivingTear = false;
     for (const target of potatoObjects) {
       const site = SONG_SITES.find(site => site.potatoId === target.id);
       const restored = !site || game.restoredSites.includes(site.id);
@@ -808,6 +856,31 @@ export function createWorld(container) {
     }
     for (const target of fairyObjects) {
       const learned = collectedTears.includes(target.id);
+      if (resetPerformance || indoors || !learned) target.tearAge = 4;
+      else if (!target.learned && learned) {
+        target.tearAge = 0;
+        // Start at the fairy’s cheek, then descend and arc toward the open jar.
+        target.from.copy(target.object.position); target.from.y += 1.85;
+      }
+      target.learned = learned;
+      target.tearAge = Math.min(4, target.tearAge + Math.max(0, dt));
+      jarAge = Math.min(jarAge, target.tearAge);
+      const gift = target.tearAge / 2.8;
+      target.tear.visible = target.tearGlow.visible = !indoors && gift < 1;
+      if (target.tear.visible) {
+        const flight = THREE.MathUtils.smoothstep(gift, .22, .88);
+        if (gift < .88 && !reducedMotion.matches) receivingTear = true;
+        if (reducedMotion.matches) target.tear.position.set(FAIRIES[target.index].x, 2.6, FAIRIES[target.index].z);
+        else {
+          tearDestination.copy(tearJar.position); tearDestination.y += .68;
+          target.tear.position.copy(target.from).lerp(tearDestination, flight);
+          target.tear.position.y -= Math.sin(Math.min(1, gift / .3) * Math.PI / 2) * .45 * (1 - flight);
+          target.tear.position.y += Math.sin(flight * Math.PI) * .55;
+        }
+        target.tear.material.opacity = reducedMotion.matches ? 1 : 1 - THREE.MathUtils.smoothstep(gift, .82, 1);
+        target.tearGlow.position.copy(target.tear.position);
+        target.tearGlow.material.opacity = target.tear.material.opacity * .42;
+      }
       target.object.visible = target.glow.visible = true;
       target.halo.visible = !learned;
       target.object.position.y = 1 + Math.sin(motionTime * 1.7 + target.index * 2) * .18;
@@ -819,6 +892,15 @@ export function createWorld(container) {
       const near = Math.hypot(player.x - FAIRIES[target.index].x, player.z - FAIRIES[target.index].z) < 3.5;
       target.halo.material.opacity = near ? .65 + (game.activeSong?.progress || 0) * .3 : .4;
     }
+    const jarCount = Math.max(0, Math.min(3, collectedTears.length - Number(receivingTear)));
+    tearJar.material.map = jarMaps[jarCount][Number(receivingTear)];
+    tearJar.visible = !indoors && jarAge < (reducedMotion.matches ? 2.8 : 3.5);
+    const tuck = reducedMotion.matches ? 0 : THREE.MathUtils.smoothstep(jarAge, 2.8, 3.5);
+    tearJar.position.x = THREE.MathUtils.lerp(tearJar.position.x, player.x + .12, tuck);
+    tearJar.position.z = THREE.MathUtils.lerp(tearJar.position.z, player.z + .12, tuck);
+    tearJar.position.y += tuck * .22;
+    tearJar.scale.set(.7 * (1 - tuck * .3), .88 * (1 - tuck * .3), 1);
+    tearJar.material.opacity = 1 - tuck;
     for (const site of siteObjects) {
       const restored = game.restoredSites.includes(site.id);
       site.bloom = reducedMotion.matches || changedScene ? Number(restored) : THREE.MathUtils.lerp(site.bloom, Number(restored), 1 - Math.exp(-dt * 3));
@@ -852,8 +934,9 @@ export function createWorld(container) {
     }
     // Each sprite pivots at its existing bottom center, leaving feet and roots fixed.
     for (const target of windSprites) {
+      const gust = breezeAt(motionTime, target.object.position.x, target.object.position.z);
       target.object.material.rotation = reducedMotion.matches ? 0 : target.amount *
-        (Math.sin(motionTime * target.speed + target.phase) + Math.sin(motionTime * .37 + target.phase * 1.8) * .35);
+        (.15 + gust * .85) * (Math.sin(motionTime * target.speed + target.phase) + gust * .65);
     }
     for (let i = 0; i < rippleCount; i++) {
       const ripple = rippleSeeds[i], distance = (ripple.distance + motionTime * ripple.speed) % brookLength;
@@ -888,7 +971,16 @@ export function createWorld(container) {
         mat.opacity = THREE.MathUtils.lerp(mat.opacity, covers ? (target.fadedOpacity || .12) : 1, factor);
         mat.depthWrite = mat.opacity > .99 && !mat.isSpriteMaterial;
       }
-      if (target.phase !== undefined) target.object.rotation.z = reducedMotion.matches ? 0 : Math.sin(motionTime * .6 + target.phase) * .008;
+      if (target.branches) {
+        const gust = reducedMotion.matches ? 0 : breezeAt(motionTime, target.x, target.z);
+        // Keep the trunk rooted. More flexible branch tips catch the passing gust.
+        for (const [i, branch] of target.branches.entries()) {
+          const bend = gust * (.045 + i * .018) * (.65 + Math.sin(motionTime * 1.5 + target.phase + i * .6) * .35);
+          branch.object.position.x = branch.x + bend;
+          branch.object.position.z = branch.z + bend * .35;
+          branch.object.material.rotation = bend * .18;
+        }
+      }
     }
     if (!reducedMotion.matches) {
       for (let i = 0; i < moteCount; i++) {
@@ -904,6 +996,8 @@ export function createWorld(container) {
   }
 
   function dispose() {
+    firBark.dispose(); birchBark.dispose(); tearMap.dispose();
+    jarMaps.flat().forEach(map => map.dispose());
     geometries.forEach(geometry => geometry.dispose()); materials.forEach(mat => mat.dispose());
     maps.dispose(); painted.dispose(); floorMap.dispose(); woodMap.dispose(); plasterMap.dispose(); clothMap.dispose(); pathMap.dispose(); windowMap.dispose(); renderer.dispose(); renderer.domElement.remove();
   }

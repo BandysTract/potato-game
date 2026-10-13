@@ -1,11 +1,11 @@
-# Instrument sample sources
+# Audio sample sources
 
-The WAV files in this folder are original, unmodified VSCO 2 Community Edition recordings published by Versilian Studios. Recorded by Sam Gossner and Simon Dalzell. Sample cutting by Elan Hickler / Soundemote.
+The violin, clarinet, bass, and tambourine WAV files in this folder are original, unmodified VSCO 2 Community Edition recordings published by Versilian Studios. Recorded by Sam Gossner and Simon Dalzell. Sample cutting by Elan Hickler / Soundemote.
 
 - [Official library page](https://versilian-studios.com/vsco-community/) links its “Original .wav format” download to [sgossner/VSCO-2-CE](https://github.com/sgossner/VSCO-2-CE).
 - Source WAV commit: `440300901dfe9275fd84e0b7763af1f8443ae62e`.
 - [Upstream license](https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/LICENSE): CC0 1.0 Universal. The complete upstream license text follows below.
-- Each sample’s exact source URL, original filename, SHA-256 checksum, upstream Git blob checksum, WAV properties, and MIDI root appear in `manifest.json`.
+- Each instrument sample’s exact source URL, original filename, SHA-256 checksum, upstream Git blob checksum, WAV properties, and MIDI root appear in `manifest.json`.
 - Pitches and tuning corrections come from the original [SFZ instrument maps](https://github.com/sgossner/VSCO-2-CE/tree/6dd651d55dde97fd4028699be9d4481f26917891) at commit `6dd651d55dde97fd4028699be9d4481f26917891`. MIDI is a note-number system used by music software. MIDI note 60 is C4. Clarinet and contrabass source filenames use octave numbers one lower than their mapped MIDI pitches. Use `rootMidi`, not the octave in `originalPath`. `tuneCents` records the official pitch correction, including −20 cents for the soft C4 violin sample.
 - The selected violin recordings are the soft `p` layer. Clarinet and bass use `v1`, the lowest available selected velocity layer. The tambourine recording is a single upstroke from the included VSCO 1 percussion folder. Its filename does not document a quiet dynamic, so playback volume must set its level.
 - The subset contains four solo violin sustain samples, four clarinet sustain samples, two solo contrabass pizzicato samples, and one tambourine hit. Nearest clarinet pitches for C4, G4, C5, and G5 are B♭3, F4, B♭4, and F5. Bass roots are C2 and F♯2. Where two roots are equally close, the lower root is chosen.
@@ -160,9 +160,17 @@ not bundled assets. No reuse license was found for the modern teaching PDFs.
 
 None of the chosen melody variants has a pickup. The arrangement engine uses
 actual measure lengths and can represent a short pickup without padding it.
-Hana hums each tune’s opening four-bar phrase, with a clarinet call before her
+Hana hums each tune’s opening four-bar phrase, with a recorded solo vocal call an octave below her
 answer when learning. Notes and timing are shared with the background score.
 Czech-listener identification is a separate acceptance check, not established
 by transcription or automated playback checks.
 
-The manifest lists all 11 bundled samples.
+The manifest lists all 14 bundled samples.
+
+## Fairy singing
+
+The three `fairy-la-*.wav` files are edited syllables from [“feminine voice singing random melody” by buggly](https://freesound.org/people/buggly/sounds/505438/), published February 9, 2020, under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). The author describes it as free for any use. The source page and license were checked October 13, 2026.
+
+The source was the page’s linked [high-quality MP3](https://cdn.freesound.org/previews/505/505438_9088242-hq.mp3). The edits take three short sung syllables, remove their constant waveform offset, normalize their volume, fade their starts, and crossfade the sustain loop. No voice cloning or speech generation is used. The original melody is not played. These syllables play the game’s existing melodies one octave below Hana’s response. The source recording’s natural pitch movement remains, with median tuning corrections measured from each sustained vowel. The highest woodland notes play 6 semitones above the nearest sample.
+
+The manifest records source cut times, download checksum, author, license, derived file checksums, measured tuning corrections, and loop points. All vocal files are bundled locally. They add 148,452 bytes. The full source download and reproducible editing script are retained in `evidence/human-fairy-voice/` in the local workspace.

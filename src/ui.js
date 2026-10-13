@@ -5,6 +5,7 @@ import { t, placeName } from './i18n.js';
 const icons = {
   potato: '<path d="M7 4c3-3 10-2 12 3s-2 12-7 13S2 17 3 12s1-6 4-8Z"/><path d="m8 9 .1.1m7 0 .1.1m-4 6 .1.1"/>',
   tear: '<path d="M12 2S5 10 5 15a7 7 0 0 0 14 0c0-5-7-13-7-13Z"/><path d="M8 15c0 2 1 3 3 3"/>',
+  jar: '<path d="M8 3h8v4l3 3v9c0 3-14 3-14 0v-9l3-3V3Zm0 2h8M5 14c4 2 10 2 14 0M9 2h6"/><path d="M8 11v7"/>',
   sound: '<path d="m11 5-5 4H3v6h3l5 4V5Z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',
   mute: '<path d="m11 5-5 4H3v6h3l5 4V5Zm5 4 5 6m0-6-5 6"/>',
   map: '<path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Zm6-2v16m6-14v16"/>',
@@ -62,10 +63,10 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
           <button class="icon-button" data-action="pause" type="button" aria-label="${l('Pause, Escape')}">${icon('pause')}<span class="nav-label">${l('Pause')}</span></button>
         </nav>
       </header>
-      <aside class="basket-panel" aria-label="${l('Your basket and next destination')}">
+      <aside class="basket-panel" aria-label="${l('Your supplies and next destination')}">
         <div class="basket-counts">
           <div class="basket-count potato-count">${icon('potato')}<span><strong data-potato-count>0 <span>/ 6</span></strong><span>${l('Potatoes')}</span></span></div>
-          <div class="basket-count tear-count">${icon('tear')}<span><strong data-tear-count>0 <span>/ 3</span></strong><span>${l('Fairy tears')}</span></span></div>
+          <div class="basket-count tear-count">${icon('jar')}<span><strong data-tear-count>0 <span>/ 3</span></strong><span>${l('Fairy tears')}</span></span></div>
         </div>
         <div class="song-inventory" aria-label="${l('Learned songs')}">${SONGS.map((song) => `<span role="img" data-inventory-song="${song.id}" title="${l(song.name)}">${icon(songSymbols[song.id])}<span class="song-inventory-name">${l(song.name)}</span></span>`).join('')}</div><div class="house-progress" hidden><strong data-house-progress></strong><div class="house-progress-stops" aria-hidden="true">${HOUSE_TARGETS.map((_, index) => `<i data-house-progress-stop="${index}"></i>`).join('')}</div></div>
         <div class="destination"><span class="destination-symbol">${icon('map')}</span><div><span class="eyebrow" data-goal-kicker>${l('Up ahead')}</span><strong data-goal-label>${l('Cottage garden')}</strong><span class="goal-distance" data-goal-distance>${l('A short walk away')}</span></div></div>
@@ -275,7 +276,7 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
       potatoCount.firstChild.textContent = `${potatoes} `;
       tearCount.firstChild.textContent = `${tears} `;
       potatoCount.closest('.basket-count').setAttribute('aria-label', t(language, '{count} of 6 potatoes', { count: potatoes }));
-      tearCount.closest('.basket-count').setAttribute('aria-label', t(language, '{count} of 3 fairy tears', { count: tears }));
+      tearCount.closest('.basket-count').setAttribute('aria-label', t(language, '{count} of 3 fairy tears in your jar', { count: tears }));
       previousCounts = counts;
     }
     const learnedSongs = game.learnedSongs || [];

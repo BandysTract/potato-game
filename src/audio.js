@@ -6,6 +6,9 @@ const frequency = (note) => 440 * 2 ** ((note - 69) / 12);
 const VOWELS = [[300, 900, 2100, 2900], [360, 1000, 2200, 3000], [420, 1150, 2350, 3100], [320, 950, 2150, 2950]];
 const VOICE_LEVELS = [.5, .47, .49, .43];
 const BREATH_LEVELS = [.014, .012, .01, .018];
+// Open ah/oh/oo vowels distinguish the fairy’s call from Hana’s closed-mouth hum.
+const FAIRY_VOWELS = [[650, 1100, 2700, 3500], [480, 950, 2500, 3350], [580, 1350, 2800, 3600], [400, 850, 2400, 3200]];
+const FAIRY_LEVELS = [.38, .35, .37, .32];
 export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {}) {
   let context;
   let master;
@@ -157,6 +160,11 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
       source.buffer = sample.buffer;
       level *= 10 ** ((sample.gainDb ?? 0) / 20);
       source.playbackRate.value = sample.rootMidi === null ? 1 : 2 ** ((midi - sample.rootMidi + sample.tuneCents / 100) / 12);
+      if (sample.loopEnd) {
+        source.loop = true;
+        source.loopStart = sample.loopStart;
+        source.loopEnd = sample.loopEnd;
+      }
     } else {
       source = context.createOscillator();
       if (part === 'violin') source.setPeriodicWave(stringWave);
@@ -165,8 +173,8 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
       source.frequency.value = part === 'tambourine' ? 2100 : frequency(midi);
     }
     source.connect(gain);
-    const sustained = part === 'violin' || part === 'clarinet';
-    const release = sustained ? .12 : 0;
+    const sustained = part === 'violin' || part === 'clarinet' || part === 'fairy';
+    const release = part === 'fairy' ? .04 : sustained ? .12 : 0;
     gain.gain.setValueAtTime(0, start);
     gain.gain.linearRampToValueAtTime(level, start + Math.min(duration * .2, sustained ? .045 : .008));
     if (sustained) {
@@ -186,22 +194,22 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
     source.stop(start + duration + release + .02);
   }
 
-  function startSinger(midi, syllable, start) {
+  function startSinger(midi, syllable, start, fairy = false) {
     if (voices.size > 60) return;
     const now = start;
     const gain = context.createGain();
     const throat = context.createBiquadFilter();
     throat.type = 'lowpass';
-    throat.frequency.value = 2200;
+    throat.frequency.value = fairy ? 3800 : 2200;
     throat.Q.value = .7;
     const resonances = [];
-    const formants = VOWELS[syllable].map((value, index) => {
+    const formants = (fairy ? FAIRY_VOWELS : VOWELS)[syllable].map((value, index) => {
       const filter = context.createBiquadFilter();
       filter.type = 'bandpass';
       filter.frequency.value = value;
-      filter.Q.value = [2.5, 4, 6, 7][index];
+      filter.Q.value = (fairy ? [2, 3, 4, 5] : [2.5, 4, 6, 7])[index];
       const resonance = context.createGain();
-      resonance.gain.value = [1, .55, .15, .05][index];
+      resonance.gain.value = (fairy ? [.8, .65, .22, .09] : [1, .55, .15, .05])[index];
       throat.connect(filter);
       filter.connect(resonance);
       resonance.connect(gain);
@@ -228,23 +236,23 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
     breathFilter.Q.value = .8;
     const breathGain = context.createGain();
     breathGain.gain.setValueAtTime(.035, now);
-    breathGain.gain.linearRampToValueAtTime(BREATH_LEVELS[syllable], now + .18);
+    breathGain.gain.linearRampToValueAtTime(BREATH_LEVELS[syllable] * (fairy ? 1.8 : 1), now + .18);
     breath.connect(breathFilter);
     breathFilter.connect(breathGain);
     breathGain.connect(throat);
     const vibrato = context.createOscillator();
-    vibrato.frequency.setValueAtTime(5, now);
-    vibrato.frequency.linearRampToValueAtTime(5.35, now + 2.2);
+    vibrato.frequency.setValueAtTime(fairy ? 5.5 : 5, now);
+    vibrato.frequency.linearRampToValueAtTime(fairy ? 5.8 : 5.35, now + 2.2);
     const depth = context.createGain();
     depth.gain.setValueAtTime(0, now);
     depth.gain.setValueAtTime(0, now + .22);
-    depth.gain.linearRampToValueAtTime(8, now + .6);
-    depth.gain.linearRampToValueAtTime(6, now + 2.2);
+    depth.gain.linearRampToValueAtTime(fairy ? 12 : 8, now + .6);
+    depth.gain.linearRampToValueAtTime(fairy ? 9 : 6, now + 2.2);
     vibrato.connect(depth);
     depth.connect(voice.detune);
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(.13, now + .055);
-    gain.gain.linearRampToValueAtTime(VOICE_LEVELS[syllable], now + .18);
+    gain.gain.linearRampToValueAtTime((fairy ? FAIRY_LEVELS : VOICE_LEVELS)[syllable], now + .18);
     gain.connect(master);
     gain.connect(roomSend);
     const sources = [voice, breath, vibrato];
@@ -267,31 +275,43 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
     const now = context.currentTime + .025;
     const elapsed = performance.elapsed;
     const responseAt = performance.kind === 'learn' ? phrase.duration : 0;
-    if (responseAt) for (const event of phrase.notes) {
-      if (event.note === null || event.at + event.duration <= elapsed) continue;
-      note(event.note, Math.min(event.duration, event.at + event.duration - elapsed) * .9, .2,
-        now + Math.max(0, event.at - elapsed), 'clarinet', 'performance');
-    }
-    const remaining = phrase.notes.filter(event => responseAt + event.at + event.duration > elapsed);
+    if (responseAt) scheduleVocalPhrase(phrase, 0, elapsed, now, true);
+    scheduleVocalPhrase(phrase, responseAt, elapsed, now, false);
+  }
+
+  function scheduleVocalPhrase(phrase, offset, elapsed, now, fairy) {
+    const vowels = fairy ? FAIRY_VOWELS : VOWELS;
+    const levels = fairy ? FAIRY_LEVELS : VOICE_LEVELS;
+    const remaining = phrase.notes.filter(event => offset + event.at + event.duration > elapsed);
     const first = remaining.find(event => event.note !== null);
     if (!first) return;
-    const voice = startSinger(first.note, 0, now + Math.max(0, responseAt + first.at - elapsed));
+    if (fairy && sampleBank.some(sample => sample.instrument === 'fairy')) {
+      remaining.forEach((event, index) => {
+        if (event.note === null) return;
+        const at = now + Math.max(0, offset + event.at - elapsed);
+        const end = now + offset + event.at + event.duration - elapsed;
+        // Keep the recording near the singer’s own range, one octave below Hana.
+        note(event.note - 12, end - at, [.8, .76, .82, .74][index % 4], at, 'fairy', 'performance');
+      });
+      return;
+    }
+    const voice = startSinger(first.note, 0, now + Math.max(0, offset + first.at - elapsed), fairy);
     if (!voice) return;
     remaining.forEach((event, index) => {
-      const at = now + Math.max(0, responseAt + event.at - elapsed);
-      const end = now + responseAt + event.at + event.duration - elapsed;
-      const vowel = index % VOWELS.length;
+      const at = now + Math.max(0, offset + event.at - elapsed);
+      const end = now + offset + event.at + event.duration - elapsed;
+      const vowel = index % vowels.length;
       if (event.note !== null) {
-        voice.pitch.frequency.setTargetAtTime(frequency(event.note), at, .025);
-        voice.formants.forEach((filter, i) => filter.frequency.setTargetAtTime(VOWELS[vowel][i], at, .03));
-        voice.breathGain.gain.setTargetAtTime(BREATH_LEVELS[vowel], at, .025);
+        voice.pitch.frequency.setTargetAtTime(frequency(event.note), at, fairy ? .045 : .025);
+        voice.formants.forEach((filter, i) => filter.frequency.setTargetAtTime(vowels[vowel][i], at, fairy ? .08 : .03));
+        voice.breathGain.gain.setTargetAtTime(BREATH_LEVELS[vowel] * (fairy ? 1.8 : 1), at, .025);
         voice.gain.gain.setValueAtTime(.005, at);
-        voice.gain.gain.linearRampToValueAtTime(VOICE_LEVELS[vowel], at + .045);
-        voice.gain.gain.setValueAtTime(VOICE_LEVELS[vowel], Math.max(at + .05, end - .08));
+        voice.gain.gain.linearRampToValueAtTime(levels[vowel], at + (fairy ? .09 : .045));
+        voice.gain.gain.setValueAtTime(levels[vowel], Math.max(at + (fairy ? .1 : .05), end - .08));
         voice.gain.gain.linearRampToValueAtTime(.005, end - .015);
       } else voice.gain.gain.setValueAtTime(0, at);
     });
-    const end = now + responseAt + phrase.duration - elapsed;
+    const end = now + offset + phrase.duration - elapsed;
     voice.gain.gain.setValueAtTime(0, end);
     voice.sources.forEach(source => source.stop(end + .02));
   }

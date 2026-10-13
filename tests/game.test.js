@@ -716,12 +716,12 @@ test('switching a visible message preserves movement, gifts, timing, and source 
   assert.equal(game.messageTime, 3);
 });
 
-test('a learned song name follows language changes in its visible message', () => {
+test('a learned song name and tear jar follow language changes in the visible message', () => {
   const game = playing('cs');
   sing(game, FAIRIES[0]);
   for (const language of ['en', 'cs']) {
     setLanguage(game, language);
-    assert.equal(game.message, t(language, 'You learned {song}. A fairy tear joins your basket.', { song: t(language, SONGS[0].name) }));
+    assert.equal(game.message, t(language, 'You learned {song}. A fairy tear is safe in your jar.', { song: t(language, SONGS[0].name) }));
   }
 });
 

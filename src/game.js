@@ -153,7 +153,7 @@ function completeSong(game, performance) {
     const song = SONGS.find(song => song.id === performance.songId);
     if (!game.learnedSongs.includes(song.id)) game.learnedSongs.push(song.id);
     if (!game.tears.includes(song.fairyId)) game.tears.push(song.fairyId);
-    setMessage(game, 'You learned {song}. A fairy tear joins your basket.', { song: song.name }, 7);
+    setMessage(game, 'You learned {song}. A fairy tear is safe in your jar.', { song: song.name }, 7);
     return;
   }
   const site = SONG_SITES.find(site => site.id === performance.targetId);

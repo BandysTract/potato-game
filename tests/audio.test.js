@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { createAudio } from '../src/audio.js';
 import { createGame, startGame, finishConversation, setLanguage, step, cancelSong } from '../src/game.js';
@@ -161,22 +162,27 @@ test('animal themes remain distinct and use the same ensemble', () => {
 });
 
 for (const fairy of FAIRIES) {
-  test(`${fairy.id} schedules a clarinet call and one humming response from the shared melody`, async () => {
+  test(`${fairy.id} schedules a fairy vocal call and Hana’s humming response from the shared melody`, async () => {
     await withAudio(async (audio, context) => {
       const game = gameState(); Object.assign(game.player, fairy);
       step(game, { interact: true }, .01); audio.tick(game);
       const performance = game.activeSong;
       const phrase = songPhrase(performance.songId);
       const folds = context.sources().filter(source => source.wave?.imaginary.length === 33);
-      assert.equal(folds.length, 1);
-      const voice = folds[0];
+      assert.equal(folds.length, 2, 'Both the fairy call and Hana response use vocal synthesis.');
+      const [fairyVoice, voice] = folds;
+      assert.ok(Math.abs(fairyVoice.startTime - .025) < .001);
+      assert.deepEqual(fairyVoice.frequency.events.filter(([kind]) => kind === 'target').map(([, value]) => Math.round(69 + 12 * Math.log2(value / 440))), phrase.notes.filter(n => n.note !== null).map(n => n.note));
       assert.ok(Math.abs(voice.startTime - phrase.duration - .025) < .001, 'The fairy calls before Hana answers.');
       const pitches = voice.frequency.events.filter(([kind]) => kind === 'target').map(([, value]) => Math.round(69 + 12 * Math.log2(value / 440)));
       assert.deepEqual(pitches, phrase.notes.filter(n => n.note !== null).map(n => n.note));
       const breath = context.sources().find(source => source instanceof BufferSource);
       assert.equal(breath.loop, true);
       assert.equal(breath.buffer.length, context.sampleRate * 2);
-      assert.equal(context.nodes.filter(node => node.type === 'bandpass' && node.Q.value > 1).length, 4);
+      assert.equal(context.nodes.filter(node => node.type === 'bandpass' && node.Q.value > 1).length, 8);
+      const fairyMouth = fairyVoice.connections[0].connections.map(node => node.frequency.value);
+      const hanaMouth = voice.connections[0].connections.map(node => node.frequency.value);
+      assert.notDeepEqual(fairyMouth, hanaMouth, 'The fairy has a distinct open-vowel voice.');
       assert.equal(context.nodes[1].gain.events.at(-1)[1], .05);
       // Audio and game clocks run independently. The half-second stall must not
       // stretch already scheduled notes, create another singer, or duplicate rewards.
@@ -187,7 +193,7 @@ for (const fairy of FAIRIES) {
         wall += elapsed; context.advance(wall); step(game, {}, elapsed); audio.tick(game);
       }
       assert.deepEqual(voice.frequency.events, planned);
-      assert.equal(context.sources().filter(source => source.wave?.imaginary.length === 33).length, 1);
+      assert.equal(context.sources().filter(source => source.wave?.imaginary.length === 33).length, 2);
       assert.ok(wall >= performance.duration && wall < performance.duration + .02);
       assert.deepEqual(game.tears, [fairy.id]);
       context.advance(wall + .1);
@@ -389,3 +395,58 @@ test('theme changes fade down and back up independently of singing volume', asyn
     assert.ok(context.nodes.some(node => node.gain?.events.some(([kind, value]) => kind === 'linear' && value === 0) && node.gain.events.some(([kind, value]) => kind === 'linear' && value === 1)));
   });
 });
+
+// Use the bundled vocal metadata so pitch, loops, and source selection stay linked.
+const vocalSamples = JSON.parse(await readFile(new URL('../public/assets/audio/manifest.json', import.meta.url), 'utf8')).samples.filter(sample => sample.instrument === 'fairy');
+async function withRecordedVoice(run) {
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ samples: vocalSamples }), arrayBuffer: async () => new ArrayBuffer(4) });
+  class DecodeContext extends FakeContext { async decodeAudioData() { return { duration: 1, recorded: true }; } }
+  try { await withAudio(async (audio, context) => { await audio.samplesReady(); await run(audio, context); }, DecodeContext); }
+  finally { globalThis.fetch = previous; }
+}
+for (const fairy of FAIRIES) {
+  test(`${fairy.id} sings the recorded human syllables at the melody’s lower octave`, async () => {
+    await withRecordedVoice(async (audio, context) => {
+      const game = gameState(); Object.assign(game.player, fairy);
+      step(game, { interact: true }, .01); audio.tick(game);
+      const phrase = songPhrase(game.activeSong.songId), notes = phrase.notes.filter(n => n.note !== null);
+      const recorded = context.sources().filter(source => source.buffer?.recorded);
+      assert.equal(recorded.length, notes.length);
+      recorded.forEach((source, i) => {
+        const midi = notes[i].note - 12;
+        const sample = [...vocalSamples].sort((a, b) => Math.abs(a.rootMidi - midi) - Math.abs(b.rootMidi - midi))[0];
+        assert.ok(Math.abs(source.playbackRate.value - 2 ** ((midi - sample.rootMidi + sample.tuneCents / 100) / 12)) < 1e-9);
+        assert.ok(Math.abs(source.startTime - notes[i].at - .025) < 1e-9);
+        assert.equal(source.loop, true);
+        assert.equal(source.loopStart, sample.loopStart);
+        assert.equal(source.loopEnd, sample.loopEnd);
+      });
+      const hana = context.sources().filter(source => source.wave?.imaginary.length === 33);
+      assert.equal(hana.length, 1, 'Only Hana uses synthesized humming when recordings loaded.');
+      assert.ok(Math.abs(hana[0].startTime - phrase.duration - .025) < 1e-9);
+      context.advance(20);
+      assert.ok(recorded.every(source => source.disconnected));
+    });
+  });
+}
+for (const interrupt of ['movement', 'cancel', 'pause', 'mute', 'restart', 'dispose']) {
+  test(`${interrupt} stops all current and queued recorded fairy syllables`, async () => {
+    await withRecordedVoice(async (audio, context) => {
+      let game = gameState(); Object.assign(game.player, FAIRIES[0]);
+      step(game, { interact: true }, .01); audio.tick(game);
+      const recorded = context.sources().filter(source => source.buffer?.recorded);
+      assert.ok(recorded.length > 1 && recorded.some(source => source.startTime > 1));
+      context.advance(.2);
+      if (interrupt === 'movement') step(game, { x: 1 }, .02);
+      if (interrupt === 'cancel') cancelSong(game);
+      if (interrupt === 'pause') audio.setPaused(true);
+      if (interrupt === 'mute') audio.setEnabled(false);
+      if (interrupt === 'restart') game = gameState();
+      if (interrupt === 'dispose') audio.dispose();
+      audio.tick(game); context.advance(.25);
+      assert.ok(recorded.every(source => source.stopTime <= .241 && source.disconnected));
+      assert.equal(game.tears.length, 0);
+    });
+  });
+}

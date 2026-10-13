@@ -1,5 +1,5 @@
 import './style.css';
-import { createGame, startGame, step, getNearby, getGoal, finishConversation, setLanguage, setMessage } from './game.js';
+import { createGame, startGame, step, getNearby, getGoal, finishConversation, setLanguage, setMessage, chooseSong, cancelSong } from './game.js';
 import { createWorld } from './world.js';
 import { createUI } from './ui.js';
 import { createAudio } from './audio.js';
@@ -12,6 +12,7 @@ let returnOverlay = null;
 let sound = false;
 let soundPreference = null;
 let soundError = '';
+let sampleFallback = false;
 let dialogueChoice = null;
 let endingTime = 0;
 const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -22,6 +23,12 @@ const audio = createAudio((enabled) => {
   sound = enabled;
   if (enabled) clearSoundError();
   if (!stopped) drawUI();
+}, (status) => {
+  sampleFallback = status === 'fallback';
+  if (sampleFallback && !stopped) {
+    setMessage(game, 'The instruments couldn’t load. Music will use synthesized sounds. You can keep exploring.', {}, 7);
+    drawUI();
+  }
 });
 const ui = createUI(document.querySelector('#ui'), onAction);
 let world;
@@ -33,17 +40,18 @@ function syncAudioPause() {
   audio.setPaused(stopped || !audioFocused || document.hidden || Boolean(overlay) && !['intro', 'win', 'reveal', 'dialogue'].includes(overlay));
 }
 
-function clearInput() {
+function clearInput(preserveActivity = false) {
   keys.clear();
   touch = { x: 0, y: 0, interact: false };
   pendingInteraction = false;
   game.player.moving = false;
-  game.holdProgress = 0;
-  game.activeFairy = null;
+  game.interactionHeld = false;
+  game.houseInteractionHeld = false;
+  if (!preserveActivity) { cancelSong(game); game.actionAnimation = null; }
 }
 
-function showOverlay(next) {
-  clearInput();
+function showOverlay(next, preserveActivity = false) {
+  clearInput(preserveActivity);
   overlay = next;
   syncAudioPause();
   drawUI();
@@ -52,6 +60,7 @@ function showOverlay(next) {
 function drawUI() {
   ui.update(game, {
     overlay, sound, soundError: soundError ? t(game.language, soundError) : '', nearby: getNearby(game), goal: getGoal(game), region: t(game.language, game.scene === 'house' ? 'Inside the cottage' : regionAt(game.player)),
+    sampleFallback: sampleFallback ? t(game.language, 'The instruments couldn’t load. Music will use synthesized sounds. You can keep exploring.') : '',
     dialogue: { creatureId: game.conversation, index: game.conversationIndex, choice: dialogueChoice },
   });
 }
@@ -119,6 +128,8 @@ function onAction(action, value) {
   } else if (action === 'dialogueChoice' && overlay === 'dialogue' && (value === 0 || value === 1)) {
     dialogueChoice = value;
     drawUI();
+  } else if (action === 'chooseSong' && overlay === 'songs') {
+    if (chooseSong(game, value)) { returnOverlay = null; showOverlay(null, true); }
   } else if (action === 'language') {
     setLanguage(game, value === 'cs' || value === 'en' ? value : game.language === 'cs' ? 'en' : 'cs');
     syncLanguage();
@@ -153,6 +164,7 @@ function onKeyDown(event) {
     event.preventDefault();
     if (event.repeat) return;
     if (overlay) closeOverlay();
+    else if (game.activeSong) { cancelSong(game); audio.tick(game); drawUI(); }
     else onAction('pause');
   } else if (event.code === 'KeyM' && game.phase !== 'won') {
     event.preventDefault();
@@ -162,16 +174,22 @@ function onKeyDown(event) {
     if (!event.repeat) onAction('help');
   } else if (movementKeys.has(event.code) && !overlay) {
     event.preventDefault();
-    keys.add(event.code);
+    if (event.code !== 'KeyE' || !event.repeat) keys.add(event.code);
     if (event.code === 'KeyE' && !event.repeat) pendingInteraction = true;
   }
 }
-function onKeyUp(event) { keys.delete(event.code); }
+function onKeyUp(event) {
+  keys.delete(event.code);
+  if (event.code === 'KeyE' && !touch.interact) {
+    game.interactionHeld = false;
+    game.houseInteractionHeld = false;
+  }
+}
 function onBlur() {
   clearInput();
   audioFocused = false;
   audio.setPaused(true);
-  if (game.phase === 'playing' && !overlay) onAction('pause');
+  if (game.phase === 'playing' && (!overlay || overlay === 'songs')) { returnOverlay = null; showOverlay('pause'); }
 }
 function onFocus() { audioFocused = true; syncAudioPause(); }
 function onVisibility() {
@@ -186,7 +204,7 @@ window.addEventListener('blur', onBlur);
 window.addEventListener('focus', onFocus);
 document.addEventListener('visibilitychange', onVisibility);
 
-function graphicsError() {
+function graphicsError(artwork = false) {
   stopped = true;
   clearInput();
   audio.setPaused(true);
@@ -198,7 +216,9 @@ function graphicsError() {
   const heading = document.createElement('h1');
   heading.textContent = t(game.language, 'The forest couldn’t open.');
   const description = document.createElement('p');
-  description.textContent = t(game.language, 'The game needs WebGL, your browser’s 3D graphics support. Try reloading or opening the game in a browser with hardware acceleration turned on.');
+  description.textContent = artwork
+    ? t(game.language, 'The character artwork couldn’t load. Reload the game to try again.')
+    : t(game.language, 'The game needs WebGL, your browser’s 3D graphics support. Try reloading or opening the game in a browser with hardware acceleration turned on.');
   const button = document.createElement('button');
   button.textContent = t(game.language, 'Try again');
   button.onclick = () => window.location.reload();
@@ -207,7 +227,7 @@ function graphicsError() {
   languageButton.onclick = () => {
     setLanguage(game, game.language === 'cs' ? 'en' : 'cs');
     syncLanguage();
-    graphicsError();
+    graphicsError(artwork);
   };
   panel.append(heading, description, button, languageButton);
   document.querySelector('#ui').replaceChildren(panel);
@@ -217,6 +237,7 @@ function graphicsError() {
 syncLanguage();
 try {
   world = createWorld(document.querySelector('#world'));
+  world.ready?.catch(() => graphicsError(true));
   world.renderer.domElement.addEventListener('webglcontextlost', (event) => {
     event.preventDefault();
     graphicsError();
@@ -229,7 +250,8 @@ try {
 let previousTime;
 function animate(timestamp) {
   if (stopped) return;
-  const dt = previousTime === undefined ? 0 : Math.min(0.05, (timestamp - previousTime) / 1000);
+  const elapsed = previousTime === undefined ? 0 : Math.max(0, (timestamp - previousTime) / 1000);
+  const dt = Math.min(.05, elapsed);
   previousTime = timestamp;
   if (!overlay) {
     const potatoesBefore = game.potatoes.length;
@@ -239,7 +261,7 @@ function animate(timestamp) {
       x: Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft')) + touch.x,
       y: Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp')) + touch.y,
       interact: pendingInteraction || keys.has('KeyE') || touch.interact,
-    }, dt);
+    }, elapsed);
     if (dt > 0) pendingInteraction = false;
     if (game.scene !== sceneBefore) {
       clearInput();
@@ -248,6 +270,7 @@ function animate(timestamp) {
     audio.tick(game, dt);
     if (game.potatoes.length > potatoesBefore) audio.collect('potato');
     if (game.tears.length > tearsBefore) audio.collect('fairy');
+    if (game.songSite) { returnOverlay = null; showOverlay('songs', true); }
     if (game.conversation) {
       dialogueChoice = null;
       returnOverlay = null;

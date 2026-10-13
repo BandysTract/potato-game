@@ -14,6 +14,17 @@ export const FAIRIES = [
   { id: 'fairy-ridge', x: 5, z: -32, name: 'Jitřenka', place: 'Mountain meadow', color: '#ffcfb1', message: 'Jitřenka sings along. She leaves a little drop of morning light.' },
   { id: 'fairy-stream', x: 24, z: -13, name: 'Rusalka', place: 'Silver brook', color: '#bce9e7', message: 'Rusalka’s laughter ripples across the water. A tear of joy is yours.' },
 ];
+export const SONGS = [
+  { id: 'woodland', name: 'Woodland song', effect: 'Open tangled branches', teacher: 'Běla', fairyId: 'fairy-birch' },
+  { id: 'growth', name: 'Growth song', effect: 'Revive growing plants', teacher: 'Jitřenka', fairyId: 'fairy-ridge' },
+  { id: 'rain', name: 'Rain song', effect: 'Bring gentle rain', teacher: 'Rusalka', fairyId: 'fairy-stream' },
+];
+export const SONG_SITES = [
+  { id: 'woodland', x: -13, z: -27, name: 'Woodland garden', songId: 'woodland', potatoId: 'potato-4', learnedClue: 'The branches need the woodland song. Try it here.', clue: 'The branches need the woodland song. Learn it from Běla.', message: 'The woodland garden opens. Its potato is ready to gather.' },
+  { id: 'meadow', x: 16, z: -27, name: 'Upper meadow', songId: 'growth', potatoId: 'potato-5', learnedClue: 'The plants need the growth song. Try it here.', clue: 'The plants need the growth song. Learn it from Jitřenka.', message: 'The meadow plants revive. Their potato is ready to gather.' },
+  { id: 'cottage', x: 6, z: 18, name: 'Cottage garden', songId: 'rain', learnedClue: 'The dry garden needs the rain song. Try it here.', clue: 'The dry garden needs the rain song. Learn it from Rusalka.', message: 'Gentle rain restores the cottage garden. Your family is waiting inside.' },
+];
+export const HOUSE_CAT = { id: 'percy', x: 2.8, z: -3.1, name: 'Percy' };
 export const LANDMARKS = [HOME,
   { id: 'grove', x: -23, z: -17, name: 'Birch grove' },
   { id: 'meadow', x: 5, z: -32, name: 'Mountain meadow' },
@@ -32,7 +43,7 @@ export const TRAILS = [
 export const BROOK = [[32, -47], [30, -37], [32, -28], [30, -21], [28.5, -14], [29.5, -6], [31, 3], [34, 12], [38, 22], [43, 35]];
 // Shared obstacles keep the drawn world and walkable world in agreement.
 export const OBSTACLES = [
-  { x: 0, z: 21, radius: 2.35, type: 'cottage' },
+  { x: 0, z: 22, radius: 3.4, type: 'cottage' },
   { x: -9, z: 12, radius: 0.75, type: 'tree' },
   { x: 5, z: 13, radius: 0.7, type: 'tree' },
   { x: -28, z: 0, radius: 0.85, type: 'tree' },
@@ -58,10 +69,15 @@ export const HOUSE_OBSTACLES = [
   { id: 'stove', x: 0, z: -6.7, radius: 1.15 },
   { id: 'table', x: 5, z: -6.7, radius: 1.15 },
 ];
+// The sloping meadow edge leaves the owl and woodland garden in the forest.
+export function musicZoneAt({ x = 0, z = 0 } = {}) {
+  if (z < -28 + x * .2) return 'growth';
+  return x > 17 ? 'rain' : 'woodland';
+}
 export function regionAt({ x, z }) {
   if (z > 10) return 'Cottage garden';
-  if (z < -24) return 'Mountain meadow';
+  if (musicZoneAt({ x, z }) === 'growth') return 'Mountain meadow';
   if (x < -13) return 'Birch grove';
-  if (x > 16) return 'Silver brook';
+  if (musicZoneAt({ x, z }) === 'rain') return 'Silver brook';
   return 'Blue-marked trail';
 }

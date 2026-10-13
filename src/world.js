@@ -1,8 +1,18 @@
 import * as THREE from 'three';
-import { BOUNDS, BROOK, START, HOME, POTATOES, FAIRIES, CREATURES, TRAILS, OBSTACLES, HOUSE_BOUNDS, HOUSE_TARGETS, HOUSE_OBSTACLES } from './data.js';
+import { BOUNDS, BROOK, START, HOME, POTATOES, FAIRIES, CREATURES, TRAILS, OBSTACLES, HOUSE_BOUNDS, HOUSE_TARGETS, HOUSE_OBSTACLES, SONG_SITES, HOUSE_CAT } from './data.js';
 import { createSpriteTextures } from './sprites.js';
+import { createPaintedCharacters } from './characters.js';
+import { getNearby } from './game.js';
 
 const COLORS = { grass: '#789368', path: '#c8ba8c', rim: '#677e53', water: '#639c9b' };
+
+export function overlapsScenery(point, base, top, halfWidth, kind) {
+  if (!point) return false;
+  const height = (point.y - base.y) / (top.y - base.y);
+  const taper = kind === 'fir' ? 1 - .65 * THREE.MathUtils.clamp((height - .38) / .6, 0, 1) : 1;
+  return Boolean(Math.abs(base.x - point.x) < halfWidth * taper
+    && point.y > base.y - .04 && point.y < top.y + .04);
+}
 
 function randomSource(seed) {
   return () => {
@@ -127,7 +137,7 @@ export function createWorld(container) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#b7c9b0');
   scene.fog = new THREE.Fog('#b7c9b0', 68, 122);
-  const camera = new THREE.OrthographicCamera(-20, 20, 15, -15, .1, 180);
+  const camera = new THREE.PerspectiveCamera(35, 1, .1, 180);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
   renderer.setClearColor('#b7c9b0');
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -137,6 +147,7 @@ export function createWorld(container) {
   renderer.domElement.setAttribute('aria-hidden', 'true');
   container.appendChild(renderer.domElement);
   const maps = createSpriteTextures();
+  const painted = createPaintedCharacters();
   const materials = new Set();
   const geometries = new Set();
   const outdoors = new THREE.Group(), house = new THREE.Group(), people = new THREE.Group();
@@ -286,17 +297,50 @@ export function createWorld(container) {
   for (const x of [26.8, 30.9]) for (const z of [-15.1, -13.1]) mesh(new THREE.BoxGeometry(.12, .8, .12), railMat, x, .48, z);
   for (const z of [-15.1, -13.1]) mesh(new THREE.BoxGeometry(4.2, .1, .11), railMat, 28.85, .74, z);
   ribbon([[23, -14], [27, -14]], 1.4, COLORS.path, .03);
+  const reedStem = new THREE.CylinderGeometry(.018, .026, 1, 4);
+  const reedHead = new THREE.CylinderGeometry(.055, .055, .22, 6);
+  const reedGreen = solidMaterial('#7b915d'), reedBrown = solidMaterial('#88724b');
+  for (const [bx, bz] of [[28, -30], [28, -23], [26.7, -18], [27.5, -9], [29.1, -3]]) {
+    for (let i = 0; i < 5; i++) {
+      const x = bx + Math.sin(i * 2.4) * .3, z = bz + Math.cos(i * 2.4) * .3, h = .7 + i * .12;
+      const stem = mesh(reedStem, reedGreen, x, h / 2, z); stem.scale.y = h;
+      mesh(reedHead, reedBrown, x, h, z);
+    }
+  }
 
   const occluders = [];
+  const trunkGeometry = new THREE.CylinderGeometry(.23, .38, 1, 7);
+  const crownGeometry = new THREE.IcosahedronGeometry(1, 1);
+  const firGeometry = new THREE.ConeGeometry(1, 1, 9);
+  geometries.add(trunkGeometry); geometries.add(crownGeometry); geometries.add(firGeometry);
   function tree(x, z, kind, size = 1) {
     const isBirch = kind === 'birch';
     const height = (isBirch ? 7.3 : 7.8) * size;
     const width = (isBirch ? 4.9 : 5.2) * size;
     shadow(x + .25, z + .15, width * .8, width * .46, .55);
     shadow(x + 1.1, z + .4, width * 1.35, width * .8, .3);
-    const object = sprite(isBirch ? maps.birch[Math.floor(rng() * 2)] : maps.fir[Math.floor(rng() * 3)], x, z, width, height);
-    sway(object, kind);
-    occluders.push({ object, x, z, height });
+    const object = new THREE.Group(); object.position.set(x, 0, z); outdoors.add(object);
+    const bark = solidMaterial(isBirch ? '#d8d9bc' : '#776344', { map: woodMap, transparent: true });
+    const leaves = solidMaterial(isBirch ? '#96ae64' : '#426b58', { transparent: true, flatShading: false });
+    const trunk = new THREE.Mesh(trunkGeometry, bark); trunk.scale.set(size, height * .7, size);
+    trunk.position.y = height * .35; object.add(trunk);
+    const crowns = 5;
+    const fadeMaterials = [bark, leaves];
+    for (let i = 0; i < crowns; i++) {
+      const crown = new THREE.Mesh(isBirch ? crownGeometry : firGeometry, leaves);
+      const radius = isBirch ? width * (.24 + rng() * .07) : width * (.46 - i * .07);
+      crown.position.set(isBirch ? Math.sin(i * 2.4) * width * .2 : 0,
+        isBirch ? height * (.52 + i * .08) : height * (.38 + i * .15),
+        isBirch ? Math.cos(i * 2.4) * width * .16 : 0);
+      crown.scale.set(radius * .3, isBirch ? height * .11 : height * .11, radius * .3);
+      crown.rotation.y = i * .7; object.add(crown);
+      const leafMat = new THREE.SpriteMaterial({ map: painted.foliage[(isBirch ? 2 : 0) + i % 2], transparent: true, alphaTest: .1, depthWrite: false });
+      materials.add(leafMat); fadeMaterials.push(leafMat);
+      const spray = new THREE.Sprite(leafMat); spray.position.copy(crown.position);
+      spray.scale.set(radius * (isBirch ? 2.7 : 2.9), radius * (isBirch ? 2.7 : 2.2), 1);
+      object.add(spray);
+    }
+    occluders.push({ object, x, z, height, width, kind, fadeMaterials, phase: rng() * 6.28 });
     return object;
   }
   // Collision props use the shared obstacle positions. Other trees leave trails clear.
@@ -304,10 +348,11 @@ export function createWorld(container) {
     if (obstacle.type === 'tree') tree(obstacle.x, obstacle.z, obstacle.x < -8 ? 'birch' : 'fir', .85 + rng() * .2);
     if (obstacle.type === 'rock') {
       shadow(obstacle.x, obstacle.z, 2.4, 1.7, .55);
-      sprite(maps.stone, obstacle.x, obstacle.z, 2.25, 1.55);
+      const rock = mesh(crownGeometry, solidMaterial('#7d8d7c', { flatShading: true }), obstacle.x, .45, obstacle.z);
+      rock.scale.set(1.12, .72, .84); rock.rotation.y = .7;
     }
   }
-  const allTargets = [...POTATOES, ...FAIRIES, ...CREATURES, HOME, START];
+  const allTargets = [...POTATOES, ...FAIRIES, ...CREATURES, ...SONG_SITES, HOME, START];
   function clearForTree(x, z) {
     if (pathDistance(x, z) < 4.0) return false;
     if (allTargets.some(target => Math.hypot(x - target.x, z - target.z) < 5.0)) return false;
@@ -328,6 +373,12 @@ export function createWorld(container) {
     const x = -72 + i * 14, z = -58 - rng() * 13;
     const hill = mesh(new THREE.SphereGeometry(12 + rng() * 9, 24, 12), solidMaterial(i % 2 ? '#a9bd9c' : '#b6c6a2'), x, -1, z);
     hill.scale.set(1.5, .5 + rng() * .3, 1);
+  }
+  // Raised banks sit outside the walking bounds, with no hidden collision edges.
+  const bankGeometry = new THREE.SphereGeometry(1, 16, 8);
+  const bankMaterial = solidMaterial('#91a778', { map: floorMap });
+  for (const [x, z, sx, sz] of [[-40, -24, 6, 13], [-40, 10, 6, 12], [-21, -46, 13, 6], [11, -46, 12, 6], [42, 9, 7, 13]]) {
+    const bank = mesh(bankGeometry, bankMaterial, x, -.35, z); bank.scale.set(sx, 2.2, sz);
   }
 
   // Varied low plants deepen the woodland while keeping the walking route clear.
@@ -352,8 +403,34 @@ export function createWorld(container) {
   }
   // Hana's cottage faces into the clearing, with a stepping-stone doorstep.
   shadow(0, 21, 9, 5.4, .75);
-  const cottage = sprite(maps.cottage, 0, 21.6, 9, 7.875);
-  occluders.push({ object: cottage, x: 0, z: 21.6, height: 7.875, fadedOpacity: .42 });
+  const cottageSite = OBSTACLES.find(obstacle => obstacle.type === 'cottage');
+  const cottage = new THREE.Group(); cottage.position.set(cottageSite.x, 0, cottageSite.z); outdoors.add(cottage);
+  const cottageMats = [];
+  function cottagePart(geo, color, x, y, z, map) {
+    geometries.add(geo);
+    const mat = solidMaterial(color, { transparent: true, ...(map ? { map } : {}) }); cottageMats.push(mat);
+    const part = new THREE.Mesh(geo, mat); part.position.set(x, y, z); cottage.add(part); return part;
+  }
+  cottagePart(new THREE.BoxGeometry(5.5, 3.6, 4), '#efe0b5', 0, 1.8, 0, plasterMap);
+  for (const side of [-1, 1]) {
+    const roof = cottagePart(new THREE.BoxGeometry(3.7, .22, 4.9), '#a85439', side * 1.45, 4.35, 0, woodMap);
+    roof.rotation.z = -side * .46;
+  }
+  const gableShape = new THREE.Shape(); gableShape.moveTo(-2.75, 3.6); gableShape.lineTo(0, 5.04); gableShape.lineTo(2.75, 3.6); gableShape.closePath();
+  cottagePart(new THREE.ExtrudeGeometry(gableShape, { depth: 4, bevelEnabled: false }), '#e2ce9b', 0, 0, -2, plasterMap);
+  for (const x of [-2.75, 2.75]) for (const z of [-2.04, 2.04]) cottagePart(new THREE.BoxGeometry(.14, 3.6, .14), '#796244', x, 1.8, z, woodMap);
+  for (const z of [-2.05, 2.05]) cottagePart(new THREE.BoxGeometry(5.55, .15, .15), '#796244', 0, .2, z, woodMap);
+  cottagePart(new THREE.BoxGeometry(.55, 2.2, .65), '#c6bda2', 1.65, 4.6, .7, plasterMap);
+  cottagePart(new THREE.BoxGeometry(1.1, 2.2, .12), '#49705d', 0, 1.1, -2.08, woodMap);
+  // Matching door on the camera-facing side makes the cottage entrance legible.
+  cottagePart(new THREE.BoxGeometry(1.1, 2.2, .12), '#49705d', 0, 1.1, 2.08, woodMap);
+  for (const side of [-1, 1]) for (const front of [-1, 1]) {
+    cottagePart(new THREE.BoxGeometry(1.1, 1.1, .16), '#a2bda9', side * 1.65, 2, front * 2.08);
+    cottagePart(new THREE.BoxGeometry(.07, 1.16, .2), '#f7eac5', side * 1.65, 2, front * 2.1);
+    cottagePart(new THREE.BoxGeometry(1.16, .07, .2), '#f7eac5', side * 1.65, 2, front * 2.1);
+    cottagePart(new THREE.BoxGeometry(1.35, .23, .35), '#806242', side * 1.65, 1.35, front * 2.14, woodMap);
+  }
+  occluders.push({ object: cottage, x: cottageSite.x, z: cottageSite.z, height: 5.6, width: 6.4, fadeMaterials: cottageMats, fadedOpacity: .22 });
   for (let i = 0; i < 4; i++) {
     const stone = flatDisc(.05 + Math.sin(i * 2) * .2, 20 - i * .65, .42, '#b7b495', .06);
     stone.scale.set(1.25, .8, 1);
@@ -379,15 +456,51 @@ export function createWorld(container) {
     irregularPatch(target.x, target.z, 1.9, 1.32, '#a99564', .04);
     irregularPatch(target.x - .2, target.z + .1, 1.5, .94, '#b09b69', .043);
     for (let row = -1; row <= 1; row++) ribbon([[target.x - 1.1, target.z + row * .5], [target.x + 1.1, target.z + row * .5]], .09, '#8e8056', .047);
-    foliage(maps.potatoLeaves, target.x - .7, target.z - .35, 1.7, 1.25);
-    foliage(maps.potatoLeaves, target.x + .6, target.z - .1, 1.9, 1.42);
+    const plants = [foliage(maps.potatoLeaves, target.x - .7, target.z - .35, 1.7, 1.25),
+      foliage(maps.potatoLeaves, target.x + .6, target.z - .1, 1.9, 1.42)];
+    const soil = mesh(new THREE.SphereGeometry(1, 16, 8), solidMaterial('#9f855c', { map: pathMap }), target.x, -.13, target.z);
+    soil.scale.set(1.75, .25, 1.05);
+    for (const side of [-1, 1]) mesh(new THREE.BoxGeometry(3.5, .15, .13), solidMaterial('#968261', { map: woodMap }), target.x, .08, target.z + side * 1.05);
     const glow = sprite(maps.glow, target.x, target.z + .1, 3.3, 3.3, .1, { color: '#ffe6a6', blending: THREE.AdditiveBlending, opacity: .22 });
     glow.center.set(.5, .5); glow.position.y = .65;
     const item = sprite(maps.potato, target.x, target.z + .25, 1.35, 1.18, .22);
     const halo = mesh(new THREE.RingGeometry(.85, .89, 40), material('#fff1ba', { transparent: true, opacity: .65, side: THREE.DoubleSide, depthWrite: false }), target.x, .07, target.z);
     halo.rotation.x = -Math.PI / 2;
-    return { id: target.id, item, glow, halo, index: i };
+    return { id: target.id, item, glow, halo, plants, soil, index: i };
   });
+  const siteObjects = SONG_SITES.map(site => {
+    const brambles = [], flowers = [];
+    let bed;
+    const ring = mesh(new THREE.RingGeometry(1.4, 1.46, 48), material('#dcd0aa', { transparent: true, opacity: .7, side: THREE.DoubleSide, depthWrite: false }), site.x, .08, site.z);
+    ring.rotation.x = -Math.PI / 2;
+    if (site.id === 'cottage') {
+      bed = mesh(new THREE.BoxGeometry(3.4, .18, 2.1), solidMaterial('#907757', { map: pathMap }), site.x, .02, site.z);
+      bed.name = 'dry-cottage-garden';
+    }
+    for (let i = 0; i < 6; i++) {
+      const angle = i / 6 * Math.PI * 2;
+      const x = site.x + Math.cos(angle) * 1.25, z = site.z + Math.sin(angle) * .85;
+      const blossom = sprite(i % 2 ? maps.flowers : maps.blueFlowers, x, z, 1, 1.05, .08);
+      flowers.push(blossom);
+      if (site.id === 'woodland') {
+        const curve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(x - site.x, 0, z - site.z),
+          new THREE.Vector3(Math.cos(angle + .9) * .8, .7, Math.sin(angle + .9) * .7),
+          new THREE.Vector3(Math.cos(angle + 1.6) * 1.2, .3, Math.sin(angle + 1.6) * .8),
+        ]);
+        const vine = mesh(new THREE.TubeGeometry(curve, 12, .055, 5, false), solidMaterial('#625742'), site.x, .1, site.z);
+        brambles.push(vine);
+      }
+    }
+    return { ...site, brambles, flowers, ring, bed, bloom: 0 };
+  });
+  const rainSite = SONG_SITES.find(site => site.songId === 'rain');
+  const rainPositions = new Float32Array(144 * 3), rainSeeds = Array.from({ length: 144 }, () => [rng() * 3.4 - 1.7, rng() * 3, rng() * 2.2 - 1.1]);
+  const rainGeo = new THREE.BufferGeometry(); geometries.add(rainGeo);
+  rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+  const rainMat = new THREE.PointsMaterial({ color: '#b9e8f1', size: .17, transparent: true, opacity: .85 }); materials.add(rainMat);
+  const rain = new THREE.Points(rainGeo, rainMat); rain.position.set(rainSite.x, 0, rainSite.z); rain.frustumCulled = false; outdoors.add(rain);
+  const tearLights = [0, 1, 2].map(i => sprite(maps.glow, rainSite.x + (i - 1) * .65, rainSite.z, .55, .85, 2.7, { color: '#9fdcea', opacity: .65 }));
   const fairyObjects = FAIRIES.map((target, i) => {
     irregularPatch(target.x, target.z, 2.8, 2.25, i === 1 ? '#aeb37b' : '#91ab72', .028);
     for (let p = 0; p < 14; p++) {
@@ -413,10 +526,10 @@ export function createWorld(container) {
   const creatureObjects = CREATURES.map((target, i) => {
     const kind = target.id;
     const height = kind === 'deer' ? 3.2 : kind === 'badger' ? 1.9 : 2.25;
-    sprite(maps[kind], target.x, target.z, height * (kind === 'badger' ? 1.3 : .8), height);
+    const object = sprite(maps[kind], target.x, target.z, height * (kind === 'badger' ? 1.3 : .8), height);
     shadow(target.x, target.z, 1.8, 1, .6);
     const indicator = sprite(maps.conversation, target.x, target.z, .75, .75, height + .15);
-    return { id: target.id, indicator, height, index: i };
+    return { ...target, object, indicator, height, index: i, width: height * (kind === 'badger' ? 1.3 : .8) };
   });
 
   // The front and right walls are cut away so every family member stays visible.
@@ -471,15 +584,24 @@ export function createWorld(container) {
   welcomeMat.rotation.x = -Math.PI / 2;
   const furniture = Object.fromEntries(HOUSE_OBSTACLES.map(item => [item.id, item]));
   const john = HOUSE_TARGETS[0], cot = furniture.cot;
-  sprite(maps.john, john.x, john.z, 1.7, 2.83, .07);
+  const johnFigure = sprite(painted.actions[9], john.x, john.z, 3.3, 3.3, .07);
   shadow(john.x, john.z, 1.7, 1, .6);
   sprite(maps.aldoCot, cot.x, cot.z, cot.radius * 2.4, cot.radius * 1.89, .07);
   shadow(cot.x, cot.z, cot.radius * 2.35, cot.radius * 1.72, .45);
   const familyIndicator = sprite(maps.conversation, john.x, john.z, .65, .65, 3.05);
+  const percy = sprite(painted.cat[0], HOUSE_CAT.x, HOUSE_CAT.z, 1.05, 1.05, .03);
+  shadow(HOUSE_CAT.x, HOUSE_CAT.z, 1, .65, .5);
+  const catRug = mesh(new THREE.CylinderGeometry(.65, .65, .035, 32), material('#aa7354'), HOUSE_CAT.x, .02, HOUSE_CAT.z);
+  catRug.scale.z = .7;
   const prep = furniture.worktop, stove = furniture.stove, table = furniture.table;
   // Illustrated furniture stays centered on the shared walking obstacle positions.
   shadow(prep.x, prep.z, 2.8, 1.7, .55);
-  sprite(maps.worktop, prep.x, prep.z, 3.2, 2.67);
+  mesh(new THREE.BoxGeometry(2.6, 1.4, 1.4), roomWood, prep.x, .76, prep.z);
+  mesh(new THREE.BoxGeometry(2.9, .17, 1.65), roomEdge, prep.x, 1.52, prep.z);
+  for (const x of [-.66, .66]) {
+    mesh(new THREE.BoxGeometry(1.15, 1.12, .05), solidMaterial('#9c9d77', { map: woodMap }), prep.x + x, .78, prep.z + .73);
+    mesh(new THREE.SphereGeometry(.055, 8, 6), linen, prep.x + x * .3, .91, prep.z + .79);
+  }
   const board = mesh(new THREE.BoxGeometry(1.2, .09, .72), solidMaterial('#d5b075'), prep.x, 1.59, prep.z);
   board.rotation.y = -.2;
   const prepPotatoes = [];
@@ -490,13 +612,28 @@ export function createWorld(container) {
   mesh(new THREE.BoxGeometry(.6, .04, .1), solidMaterial('#aab6a2'), prep.x + .2, 1.67, prep.z - .25);
   mesh(new THREE.BoxGeometry(.24, .07, .13), roomEdge, prep.x + .58, 1.68, prep.z - .25);
   shadow(stove.x, stove.z, 2.7, 1.6, .5);
-  sprite(maps.stove, stove.x, stove.z, 2.8, 3.85);
+  const tile = solidMaterial('#779b8e'), iron = solidMaterial('#465953');
+  mesh(new THREE.BoxGeometry(2, 1.8, 1.5), tile, stove.x, .94, stove.z);
+  mesh(new THREE.BoxGeometry(2.12, .12, 1.62), iron, stove.x, 1.9, stove.z);
+  for (let y = .35; y < 1.8; y += .38) mesh(new THREE.BoxGeometry(2.02, .018, .03), linen, stove.x, y, stove.z + .76);
+  mesh(new THREE.BoxGeometry(.8, .65, .06), iron, stove.x, .75, stove.z + .79);
+  const stoveFire = mesh(new THREE.BoxGeometry(.55, .35, .02), material('#e5aa5f'), stove.x, .76, stove.z + .83);
+  mesh(new THREE.CylinderGeometry(.13, .13, 2.5, 12), iron, stove.x, 3.05, stove.z - .54);
+  mesh(new THREE.CylinderGeometry(.42, .32, .45, 20), solidMaterial('#b7a675'), stove.x, 2.17, stove.z + .12);
+  mesh(new THREE.TorusGeometry(.39, .035, 8, 24), linen, stove.x, 2.42, stove.z + .12).rotation.x = Math.PI / 2;
   const steam = [0, 1, 2].map(i => {
     const object = sprite(maps.glow, stove.x - .25 + i * .25, stove.z, .65, .9, 2.08 + i * .22, { color: '#fff1d2', opacity: .22 });
     object.center.set(.5, .5); return object;
   });
   shadow(table.x, table.z, 2.9, 1.8, .5);
-  sprite(maps.supperTable, table.x, table.z, 3.6, 3);
+  mesh(new THREE.BoxGeometry(3.25, .18, 1.85), roomWood, table.x, 1.4, table.z);
+  for (const x of [-1.3, 1.3]) for (const z of [-.65, .65]) mesh(new THREE.BoxGeometry(.16, 1.35, .16), roomEdge, table.x + x, .7, table.z + z);
+  mesh(new THREE.BoxGeometry(.55, .025, 1.88), material('#f1dfba', { map: clothMap }), table.x, 1.51, table.z);
+  for (const x of [-2, 2]) {
+    mesh(new THREE.BoxGeometry(.9, .14, .9), roomWood, table.x + x, .78, table.z);
+    mesh(new THREE.BoxGeometry(.14, 1.55, .9), roomEdge, table.x + x * 1.2, 1.04, table.z);
+    for (const z of [-.33, .33]) mesh(new THREE.BoxGeometry(.12, .74, .12), roomEdge, table.x + x, .37, table.z + z);
+  }
   const dinner = [];
   for (const x of [-.65, .65]) {
     const plate = mesh(new THREE.CylinderGeometry(.32, .29, .05, 32), linen, table.x + x, 1.51, table.z);
@@ -521,7 +658,7 @@ export function createWorld(container) {
   houseMarker.rotation.x = -Math.PI / 2;
 
   activeGroup = people;
-  const hana = sprite(maps.hana[0], START.x, START.z, 1.65, 2.75, .07);
+  const hana = sprite(painted.actions[0], START.x, START.z, 3.15, 3.15, .07);
   const hanaShadow = shadow(START.x, START.z, 1.7, 1, .8);
   const radiance = sprite(maps.glow, START.x, START.z, 5.8, 6.2, 1.8, { color: '#ffe8a2', blending: THREE.AdditiveBlending, opacity: 0 });
   radiance.center.set(.5, .5);
@@ -539,26 +676,42 @@ export function createWorld(container) {
   moteGeo.setAttribute('position', new THREE.BufferAttribute(motePositions, 3));
   const moteMat = new THREE.PointsMaterial({ map: maps.glow, color: '#fff4c4', size: .28, transparent: true, opacity: .7, depthWrite: false, blending: THREE.AdditiveBlending });
   materials.add(moteMat); const motes = new THREE.Points(moteGeo, moteMat); outdoors.add(motes);
+  const butterflies = [];
+  const wingGeometry = new THREE.SphereGeometry(1, 6, 4);
+  const wingMaterial = solidMaterial('#edca78');
+  for (const [x, z] of [[3, -29], [8, -34], [14, -29], [-21, -8]]) {
+    const insect = new THREE.Group(); insect.position.set(x, .9, z); outdoors.add(insect);
+    const wings = [-1, 1].map(side => {
+      geometries.add(wingGeometry);
+      const wing = new THREE.Mesh(wingGeometry, wingMaterial);
+      wing.scale.set(.14, .025, .09); wing.position.x = side * .1; insect.add(wing); return wing;
+    });
+    butterflies.push({ insect, wings, x, z });
+  }
 
   const focus = new THREE.Vector3(-8, 0, 18);
   const desiredFocus = new THREE.Vector3();
-  const cameraOffset = new THREE.Vector3(32, 35, 32);
+  const cameraOffset = new THREE.Vector3();
+  const projectedInteraction = new THREE.Vector3(), projectedEdge = new THREE.Vector3();
   const projectedPlayer = new THREE.Vector3(), projectedBase = new THREE.Vector3(), projectedTop = new THREE.Vector3();
-  let width = 1, height = 1, viewHeight = 29, elapsedWalk = 0;
+  let width = 1, height = 1, cameraDistance = 32, elapsedWalk = 0;
   let previousScene = 'outdoors', previousPhase = 'intro', transformationTime = 0;
 
   function resize() {
     width = Math.max(container.clientWidth, 1); height = Math.max(container.clientHeight, 1);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(width, height, false);
-    camera.left = -viewHeight * width / height / 2; camera.right = -camera.left;
-    camera.top = viewHeight / 2; camera.bottom = -camera.top; camera.updateProjectionMatrix();
+    camera.aspect = width / height; camera.updateProjectionMatrix();
   }
   resize();
 
   function update(game, dt, time) {
     const player = game.player || START;
     const motionTime = reducedMotion.matches ? 0 : time;
+    for (const { insect, wings, x, z } of butterflies) {
+      insect.position.set(x + Math.sin(motionTime * .7 + x) * .8, .9 + Math.sin(motionTime * 1.4 + z) * .3, z + Math.cos(motionTime * .5 + z) * .5);
+      wings.forEach((wing, i) => { wing.rotation.z = (i ? 1 : -1) * Math.sin(motionTime * 14) * .8; });
+    }
     const intro = game.phase === 'intro';
     const indoors = game.scene === 'house';
     const won = game.phase === 'won' && indoors;
@@ -566,33 +719,50 @@ export function createWorld(container) {
     outdoors.visible = !indoors; house.visible = indoors;
     scene.background.set(indoors ? '#c3ad8b' : '#b7c9b0');
     scene.fog.color.copy(scene.background);
-    desiredFocus.set(indoors ? (won && !mobile ? player.x - 2.5 : player.x * .3) : intro ? (mobile ? 0 : -8) : player.x - 1.7,
-      indoors && won ? (mobile ? 4.2 : 1.2) : 0,
-      indoors ? (won && !mobile ? player.z + 1 : player.z * .3 - 1.2) : intro ? (mobile ? 10.5 : 18) : player.z - 1.7);
+    desiredFocus.set(intro ? (mobile ? 0 : -2) : player.x,
+      won ? 1.5 : .8,
+      intro ? 15 : player.z - .4);
     const changedScene = previousScene !== (indoors ? 'house' : 'outdoors') || (intro && previousPhase !== 'intro');
     const factor = reducedMotion.matches || changedScene ? 1 : 1 - Math.exp(-Math.min(dt, .1) * (intro ? 2 : 5));
     focus.lerp(desiredFocus, factor);
-    const targetHeight = indoors ? (won ? (mobile ? 21 : 22) : mobile ? 25 : 27) : intro ? (mobile ? 30 : 28) : (mobile ? 27 : 23);
-    viewHeight = THREE.MathUtils.lerp(viewHeight, targetHeight, factor);
-    camera.left = -viewHeight * width / height / 2; camera.right = -camera.left;
-    camera.top = viewHeight / 2; camera.bottom = -camera.top; camera.updateProjectionMatrix();
+    const targetDistance = intro ? (mobile ? 36 : 38) : won ? 27 : mobile ? 28 : 32;
+    cameraDistance = THREE.MathUtils.lerp(cameraDistance, targetDistance, factor);
+    cameraOffset.set(cameraDistance * Math.cos(Math.PI / 6) * Math.SQRT1_2, cameraDistance * .5,
+      cameraDistance * Math.cos(Math.PI / 6) * Math.SQRT1_2);
     camera.position.copy(focus).add(cameraOffset); camera.lookAt(focus); camera.updateMatrixWorld();
     hana.position.set(player.x, .07, player.z);
     hanaShadow.position.set(player.x, .055, player.z);
     if (player.moving && !reducedMotion.matches) elapsedWalk += dt;
-    const frame = player.moving && !reducedMotion.matches ? Math.floor(elapsedWalk * 8) % 4 : 0;
+    const walkPhase = elapsedWalk * 1.5;
+    const frame = player.moving && !reducedMotion.matches ? Math.floor(walkPhase * painted.walkFrameCount) % painted.walkFrameCount : 0;
     transformationTime = won ? Math.min(3.2, transformationTime + Math.max(0, dt)) : 0;
     const transformation = won ? reducedMotion.matches ? 1 : transformationTime / 3.2 : 0;
     const lift = THREE.MathUtils.smoothstep(transformation, .2, .8) * .64;
     const transformed = transformation >= .65;
-    const hanaMap = transformed ? maps.goddess : maps.hana[frame];
+    const direction = player.direction || 0;
+    const idleFrame = reducedMotion.matches ? 0 : motionTime % 5.3 > 5.13 ? 1 : Math.floor(motionTime / 3) % 2 ? 2 : 0;
+    const action = game.actionAnimation;
+    const actionFrame = action?.kind === 'gather' ? 1 + Math.min(2, Math.floor(action.progress * 3))
+      : action?.kind === 'pet' ? 1 : action?.kind === 'prepare' ? 5 : action?.kind === 'cook' ? 6 : action?.kind === 'serve' ? 7 : 0;
+    const hanaMap = transformed ? painted.actions[8] : game.activeSong ? painted.actions[4]
+      : action ? painted.actions[actionFrame] : player.moving || direction > 1 ? painted.walk[direction * painted.walkFrameCount + frame] : painted.idle[idleFrame + (direction === 1 ? 6 : 0)];
     if (hana.material.map !== hanaMap) hana.material.map = hanaMap;
-    hana.material.map.repeat.x = player.facing < 0 ? -1 : 1;
-    hana.material.map.offset.x = player.facing < 0 ? 1 : 0;
-    if (player.moving && !reducedMotion.matches) hana.position.y += Math.abs(Math.sin(elapsedWalk * 12)) * .045;
+    if (player.moving && !reducedMotion.matches) hana.position.y += Math.abs(Math.sin(walkPhase * Math.PI * 2)) * .045;
     hana.position.y += lift;
     const goddessScale = 1 + THREE.MathUtils.smoothstep(transformation, .45, .9) * .12;
-    hana.scale.set(1.65 * goddessScale, 2.75 * goddessScale, 1);
+    const breath = reducedMotion.matches ? 0 : Math.sin(motionTime * 1.8) * .004;
+    hana.scale.set(3.15 * goddessScale, 3.15 * goddessScale * (1 + breath), 1);
+    // John takes his seat at the table as soon as Hana starts serving.
+    const seated = won || action?.kind === 'serve';
+    johnFigure.material.map = seated ? painted.actions[11]
+      : game.conversation === 'john' ? painted.actions[10] : painted.idle[3 + idleFrame];
+    johnFigure.scale.y = 3.3 * (1 + breath);
+    johnFigure.position.set(seated ? table.x - 2 : john.x, .07, seated ? table.z + .4 : john.z);
+    const catNear = Math.hypot(player.x - HOUSE_CAT.x, player.z - HOUSE_CAT.z) < 3;
+    const catFrame = reducedMotion.matches ? 0 : game.actionAnimation?.kind === 'pet' ? 2
+      : catNear ? (motionTime % 5 > 4.8 ? 1 : 0) : Math.floor(motionTime / 8) % 3 === 0 ? 3 : 0;
+    percy.material.map = painted.cat[catFrame];
+    percy.scale.y = 1.05 * (1 + breath * 1.4);
     hanaShadow.material.opacity = .8 - transformation * .32;
     hanaShadow.scale.set(1 - transformation * .2, 1 - transformation * .2, 1);
     radiance.visible = crownHalo.visible = won;
@@ -610,6 +780,8 @@ export function createWorld(container) {
     houseMarker.material.opacity = .82 + Math.sin(motionTime * 1.4) * .1;
     familyIndicator.visible = indoors && houseStep < 2 && !won;
     familyIndicator.position.set(station.x, houseStep === 0 ? 3.05 : 3, houseStep === 0 ? station.z : cot.z);
+    stoveFire.visible = houseStep >= 3;
+    stoveFire.material.color.set(reducedMotion.matches || Math.sin(motionTime * 4) > 0 ? '#e5aa5f' : '#ce8244');
     prepPotatoes.forEach(item => { item.visible = houseStep < 3; });
     dinner.forEach(item => { item.visible = won; });
     steam.forEach((object, i) => {
@@ -618,24 +790,56 @@ export function createWorld(container) {
     });
     const collectedPotatoes = game.potatoes || [], collectedTears = game.tears || [];
     for (const target of potatoObjects) {
-      const visible = !collectedPotatoes.includes(target.id);
+      const site = SONG_SITES.find(site => site.potatoId === target.id);
+      const restored = !site || game.restoredSites.includes(site.id);
+      const lifted = action?.kind === 'gather' && action.targetId === target.id && action.progress >= 1 / 3;
+      const visible = !collectedPotatoes.includes(target.id) && restored && !lifted;
+      target.plants.forEach(plant => { plant.material.color.set(restored ? '#ffffff' : '#928068'); plant.scale.y = restored ? 1.3 : .62; });
+      target.soil.position.y = restored ? -.06 : -.13;
       target.item.visible = target.glow.visible = target.halo.visible = visible;
       target.item.position.y = .26 + Math.sin(motionTime * 1.8 + target.index) * .075;
       target.glow.material.opacity = .22 + Math.sin(motionTime * 1.8 + target.index) * .06;
     }
     for (const target of fairyObjects) {
-      const visible = !collectedTears.includes(target.id);
-      target.object.visible = target.glow.visible = target.halo.visible = visible;
+      const learned = collectedTears.includes(target.id);
+      target.object.visible = target.glow.visible = true;
+      target.halo.visible = !learned;
       target.object.position.y = 1 + Math.sin(motionTime * 1.7 + target.index * 2) * .18;
       target.glow.position.y = 2 + Math.sin(motionTime * 1.7 + target.index * 2) * .18;
       target.glow.material.opacity = .23 + Math.sin(motionTime * 1.3 + target.index) * .05;
       const fairyMap = reducedMotion.matches ? maps.fairies[target.index] : maps.fairyFlutter[target.index][Math.floor(motionTime * 5 + target.index) % 2];
       if (target.object.material.map !== fairyMap) target.object.material.map = fairyMap;
       const near = Math.hypot(player.x - FAIRIES[target.index].x, player.z - FAIRIES[target.index].z) < 3.5;
-      target.halo.material.opacity = near ? .65 + (game.holdProgress || 0) * .3 : .4;
+      target.halo.material.opacity = near ? .65 + (game.activeSong?.progress || 0) * .3 : .4;
     }
-    homeHalo.material.opacity = collectedPotatoes.length === POTATOES.length && collectedTears.length === FAIRIES.length ? .7 : .25;
+    for (const site of siteObjects) {
+      const restored = game.restoredSites.includes(site.id);
+      site.bloom = reducedMotion.matches || changedScene ? Number(restored) : THREE.MathUtils.lerp(site.bloom, Number(restored), 1 - Math.exp(-dt * 3));
+      if (site.bed) site.bed.material.color.set(restored ? '#52633b' : '#907757');
+      site.ring.material.color.set(restored ? '#c6dc9b' : '#dcd0aa');
+      site.brambles.forEach((vine, i) => {
+        vine.scale.set(1 + site.bloom * .7, 1 - site.bloom * .93, 1 + site.bloom * .7);
+        vine.rotation.y = site.bloom * (i % 2 ? .3 : -.3);
+      });
+      site.flowers.forEach(flower => { flower.scale.y = .35 + site.bloom * .8; flower.material.color.set(restored ? '#ffffff' : '#918366'); });
+    }
+    const watering = game.activeSong?.kind === 'restore' && game.activeSong.targetId === 'cottage' && game.activeSong.songId === 'rain' && collectedTears.length === 3;
+    rain.visible = Boolean(watering && game.activeSong.progress > .35);
+    tearLights.forEach(light => { light.visible = Boolean(watering); });
+    if (rain.visible) {
+      for (let i = 0; i < rainSeeds.length; i++) {
+        const [x, y, z] = rainSeeds[i];
+        rainGeo.attributes.position.setXYZ(i, x, reducedMotion.matches ? y : (y + 3 - motionTime * 1.8 % 3) % 3, z);
+      }
+      rainGeo.attributes.position.needsUpdate = true;
+    }
+    homeHalo.material.opacity = collectedPotatoes.length === POTATOES.length && collectedTears.length === FAIRIES.length && game.restoredSites.length === SONG_SITES.length ? .7 : .25;
     for (const target of creatureObjects) {
+      const near = Math.hypot(player.x - target.x, player.z - target.z) < 5;
+      const turn = near ? (player.x - player.z > target.x - target.z ? 1 : -1) : 1;
+      target.object.scale.set(target.width, target.height * (1 + (reducedMotion.matches ? 0 : Math.sin(motionTime * (target.id === 'badger' ? 1.3 : 2) + target.index) * .012)), 1);
+      const frame = reducedMotion.matches ? 0 : Math.floor(motionTime * (near ? 1.5 : .5) + target.index) % 3;
+      target.object.material.map = (turn < 0 ? maps.creatureMirrors : maps.creatureFrames)[target.index][frame];
       target.indicator.material.opacity = (game.talked || []).includes(target.id) ? .32 : .9;
       target.indicator.position.y = target.height + .15 + Math.sin(motionTime * 1.6 + target.index) * .06;
     }
@@ -660,15 +864,24 @@ export function createWorld(container) {
       }
     }
     rippleGeo.attributes.position.needsUpdate = true;
-    // Fade only trees that actually cover Hana in the current camera projection.
+    // Fade solid scenery only where it obscures Hana or the nearby interaction.
     projectedPlayer.copy(hana.position); projectedPlayer.y += 1.3; projectedPlayer.project(camera);
+    const nearbyTarget = getNearby(game);
+    const projectedTarget = nearbyTarget ? projectedInteraction.set(nearbyTarget.x, 1, nearbyTarget.z).project(camera) : null;
     for (const target of occluders) {
       projectedBase.set(target.x, .04, target.z).project(camera);
       projectedTop.set(target.x, target.height, target.z).project(camera);
       const inFront = target.x * cameraOffset.x + target.z * cameraOffset.z > player.x * cameraOffset.x + player.z * cameraOffset.z + .4;
-      const horizontal = target.object.scale.x / (viewHeight * width / height) * .72;
-      const covers = !intro && !indoors && inFront && Math.abs(projectedBase.x - projectedPlayer.x) < horizontal && projectedPlayer.y > projectedBase.y - .04 && projectedPlayer.y < projectedTop.y + .04;
-      target.object.material.opacity = THREE.MathUtils.lerp(target.object.material.opacity, covers ? (target.fadedOpacity || .2) : 1, factor);
+      projectedEdge.set(target.x + target.width * .7 * Math.SQRT1_2, target.height * .5, target.z - target.width * .7 * Math.SQRT1_2).project(camera);
+      const horizontal = Math.abs(projectedEdge.x - projectedBase.x);
+      const overlaps = point => overlapsScenery(point, projectedBase, projectedTop, horizontal, target.kind);
+      const targetInFront = nearbyTarget && target.x + target.z > nearbyTarget.x + nearbyTarget.z + .4;
+      const covers = !intro && !indoors && (inFront && overlaps(projectedPlayer) || targetInFront && overlaps(projectedTarget));
+      for (const mat of target.fadeMaterials) {
+        mat.opacity = THREE.MathUtils.lerp(mat.opacity, covers ? (target.fadedOpacity || .12) : 1, factor);
+        mat.depthWrite = mat.opacity > .99 && !mat.isSpriteMaterial;
+      }
+      if (target.phase !== undefined) target.object.rotation.z = reducedMotion.matches ? 0 : Math.sin(motionTime * .6 + target.phase) * .008;
     }
     if (!reducedMotion.matches) {
       for (let i = 0; i < moteCount; i++) {
@@ -685,7 +898,7 @@ export function createWorld(container) {
 
   function dispose() {
     geometries.forEach(geometry => geometry.dispose()); materials.forEach(mat => mat.dispose());
-    maps.dispose(); floorMap.dispose(); woodMap.dispose(); plasterMap.dispose(); clothMap.dispose(); pathMap.dispose(); windowMap.dispose(); renderer.dispose(); renderer.domElement.remove();
+    maps.dispose(); painted.dispose(); floorMap.dispose(); woodMap.dispose(); plasterMap.dispose(); clothMap.dispose(); pathMap.dispose(); windowMap.dispose(); renderer.dispose(); renderer.domElement.remove();
   }
-  return { update, resize, dispose, renderer, scene, camera };
+  return { update, resize, dispose, renderer, scene, camera, ready: painted.ready };
 }

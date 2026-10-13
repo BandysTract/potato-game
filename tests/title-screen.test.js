@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import * as gameModel from '../src/game.js';
-import { regionAt, CREATURES, FAIRIES, HOME, HOUSE_START, HOUSE_TARGETS, POTATOES } from '../src/data.js';
+import { regionAt, CREATURES, FAIRIES, HOME, HOUSE_START, HOUSE_TARGETS, POTATOES, SONGS, SONG_SITES } from '../src/data.js';
 import { t } from '../src/i18n.js';
 
 // Run the real entry point with browser surfaces replaced, rather than supplying
@@ -40,6 +40,7 @@ function entryPoint({ soundInitThrows = false, reducedMotion = false, random = M
   let dispose;
   let frameId = 0;
   let changes;
+  let sampleStatus;
   const node = () => ({ setAttribute() {}, append() {}, focus() {}, replaceChildren() {} });
   const root = node();
   const motionPreference = { matches: reducedMotion };
@@ -61,13 +62,14 @@ function entryPoint({ soundInitThrows = false, reducedMotion = false, random = M
       return next;
     },
     completeEnable() { this.enabled = true; changes(true); },
+    failPendingSamples() { sampleStatus('fallback'); },
     setPaused(next) { this.paused = next; },
     tick(current) { this.ticks.push({ phase: current.phase, paused: this.paused }); },
     collect() {}, finish() {}, dispose() { this.disposed = true; },
   };
   runInNewContext(source, {
-    ...gameModel, createGame(language) { return gameModel.createGame(language, random); }, t, regionAt, window, document,
-    createAudio(onChange) { changes = onChange; return audio; },
+    ...gameModel, createGame(language) { return gameModel.createGame(language, random); }, t, regionAt, SONGS, SONG_SITES, window, document,
+    createAudio(onChange, onSamples) { changes = onChange; sampleStatus = onSamples; return audio; },
     createUI(_root, onAction) { action = onAction; return { update(currentGame, currentView) { game = currentGame; view = currentView; }, dispose() {} }; },
     createWorld() { return { renderer: { domElement: renderer }, update() {}, resize() {}, dispose() {} }; },
     requestAnimationFrame(callback) { frames.set(++frameId, callback); return frameId; },
@@ -187,6 +189,24 @@ test('title audio follows focus and visibility, and graphics failure permanently
   assert.equal([...app.window.listeners.values()].flat().length, 0, 'Disposal must remove the title gesture listeners.');
 });
 
+test('delayed sample failure stays truthful after mute or pause, in both languages', () => {
+  for (const muted of [true, false]) {
+    const app = entryPoint();
+    try {
+      app.action('start');
+      assert.equal(app.view.sound, true);
+      if (muted) app.action('sound');
+      else app.action('pause');
+      app.audio.failPendingSamples();
+      assert.equal(app.game.message, 'Nástroje se nepodařilo načíst. Hudba použije syntetické zvuky. Ve výpravě můžeš pokračovat.');
+      app.action('language', 'en');
+      assert.equal(app.game.message, 'The instruments couldn’t load. Music will use synthesized sounds. You can keep exploring.');
+      assert.equal(app.view.sound, !muted);
+      if (!muted) assert.equal(app.audio.paused, true);
+    } finally { app.dispose(); }
+  }
+});
+
 test('a sound initialization error reaches the localized title status and successful retry clears stale messages', () => {
   // Rejects placing the title error only in the hidden gameplay toast, or
   // leaving its text in either surface after sound becomes available.
@@ -243,22 +263,110 @@ function walkAppTo(app, target) {
   assert.fail(`The app fixture couldn’t reach ${target.id || 'waypoint'}.`);
 }
 
+function finishSongForApp(app) {
+  for (let frame = 0; app.game.activeSong && frame < 500; frame++) gameModel.step(app.game, {}, 0.05);
+  assert.equal(app.game.activeSong, null, 'The complete song must finish within 25 seconds.');
+}
+
+function finishActionForApp(app) {
+  for (let frame = 0; app.game.actionAnimation && frame < 100; frame++) gameModel.step(app.game, {}, 0.05);
+  assert.equal(app.game.actionAnimation, null, 'The timed action must finish within 5 seconds.');
+}
+
 function gatherForApp(app) {
   for (const [index, potato] of POTATOES.entries()) {
+    const site = SONG_SITES.find((item) => item.potatoId === potato.id);
+    if (site) {
+      walkAppTo(app, site);
+      gameModel.step(app.game, {}, 0.05);
+      gameModel.step(app.game, { interact: true }, 0.05);
+      assert.equal(app.game.songSite, site.id);
+      app.frame(0);
+      assert.equal(app.view.overlay, 'songs');
+      app.action('chooseSong', site.songId);
+      finishSongForApp(app);
+      assert.ok(app.game.restoredSites.includes(site.id));
+    }
     walkAppTo(app, potato);
+    gameModel.step(app.game, {}, 0.05);
     gameModel.step(app.game, { interact: true }, 0.05);
+    assert.equal(app.game.actionAnimation?.kind, 'gather');
+    assert.ok(!app.game.potatoes.includes(potato.id), 'The potato joins the basket after its gathering animation.');
+    finishActionForApp(app);
+    assert.ok(app.game.potatoes.includes(potato.id));
     if (index === 2 || index === 3) {
       const fairy = FAIRIES[index - 2];
       walkAppTo(app, fairy);
-      for (let frame = 0; frame < 40; frame++) gameModel.step(app.game, { interact: true }, 0.05);
+      gameModel.step(app.game, {}, 0.05);
+      gameModel.step(app.game, { interact: true }, 0.05);
+      finishSongForApp(app);
+      assert.ok(app.game.learnedSongs.includes(SONGS.find((song) => song.fairyId === fairy.id).id));
     }
   }
   walkAppTo(app, FAIRIES[2]);
-  for (let frame = 0; frame < 40; frame++) gameModel.step(app.game, { interact: true }, 0.05);
+  gameModel.step(app.game, {}, 0.05);
+  gameModel.step(app.game, { interact: true }, 0.05);
+  finishSongForApp(app);
+  assert.equal(app.game.learnedSongs.length, SONGS.length);
   walkAppTo(app, { x: 12, z: 7 });
   walkAppTo(app, { x: 0, z: 10 });
+  const cottage = SONG_SITES.find((item) => item.id === 'cottage');
+  walkAppTo(app, cottage);
+  gameModel.step(app.game, { interact: true }, 0.05);
+  assert.equal(app.game.songSite, cottage.id);
+  app.frame(0);
+  assert.equal(app.view.overlay, 'songs');
+  app.action('chooseSong', cottage.songId);
+  finishSongForApp(app);
+  assert.equal(app.game.restoredSites.length, SONG_SITES.length);
   walkAppTo(app, HOME);
 }
+
+test('song names, effects, and single-press singing instructions have Czech copy', () => {
+  assert.deepEqual(SONGS.map((song) => t('cs', song.name)), ['Lesní píseň', 'Píseň růstu', 'Píseň deště']);
+  assert.deepEqual(SONGS.map((song) => t('cs', song.effect)), ['Rozplést větve', 'Oživit rostliny', 'Přivolat jemný déšť']);
+  assert.equal(t('cs', 'Press E to sing'), 'Stiskni E pro zpěv');
+  assert.equal(t('cs', 'Move or press Esc to stop singing.'), 'Zpěv zastavíš pohybem nebo klávesou Esc.');
+});
+
+test('the song picker preserves its site across language changes and Escape cancels singing', () => {
+  const app = entryPoint();
+  let time = 0;
+  const frame = () => app.frame(time += 50);
+  const press = () => { app.window.fire('keydown', { key: 'e', code: 'KeyE' }); frame(); };
+  const release = () => { app.window.fire('keyup', { key: 'e', code: 'KeyE' }); frame(); };
+  try {
+    app.action('start');
+    app.frame(0);
+    walkAppTo(app, FAIRIES[0]);
+    press();
+    assert.equal(app.game.activeSong?.kind, 'learn');
+    release();
+    assert.ok(app.game.activeSong, 'Releasing E must let the automatic song continue.');
+    finishSongForApp(app);
+    walkAppTo(app, SONG_SITES[0]);
+    press();
+    assert.equal(app.view.overlay, 'songs');
+    assert.equal(app.game.songSite, 'woodland');
+    release();
+    app.action('language', 'en');
+    assert.equal(app.view.overlay, 'songs');
+    assert.equal(app.game.songSite, 'woodland');
+    app.action('chooseSong', 'rain');
+    assert.equal(app.game.activeSong, null, 'A locked song must not start.');
+    app.action('chooseSong', 'woodland');
+    assert.equal(app.view.overlay, null);
+    assert.equal(app.game.activeSong?.kind, 'restore');
+    assert.equal(app.game.activeSong?.targetId, 'woodland');
+    const active = app.game.activeSong;
+    app.action('chooseSong', 'woodland');
+    assert.equal(app.game.activeSong, active, 'A duplicate selection must not restart the song.');
+    app.window.fire('keydown', { key: 'Escape', code: 'Escape' });
+    frame();
+    assert.equal(app.game.activeSong, null);
+    assert.ok(!app.game.restoredSites.includes('woodland'), 'A cancelled song must not restore the site.');
+  } finally { app.dispose(); }
+});
 
 test('house progress survives pause, map, help, language, and a cleared held interaction', () => {
   let draws = 0;
@@ -313,6 +421,7 @@ test('house progress survives pause, map, help, language, and a cleared held int
         app.action('dialogueFinish');
       }
       release();
+      if (index >= 2) { finishActionForApp(app); frame(); }
     }
     assert.equal(app.game.phase, 'won');
     assert.equal(app.view.overlay, 'reveal', 'The ending card waits while Hana transforms.');
@@ -321,7 +430,7 @@ test('house progress survives pause, map, help, language, and a cleared held int
     assert.equal(app.game.phase, 'won');
     assert.equal(app.view.overlay, 'reveal', 'Escape and restart must not interrupt the reveal.');
     for (let count = 0; count < 40; count++) frame();
-    assert.equal(app.view.overlay, 'reveal', 'The 3.2-second reveal must not be covered early.');
+    assert.equal(app.view.overlay, 'reveal', 'The 3.6-second reveal must not be covered early.');
     for (let count = 0; count < 40; count++) frame();
     assert.equal(app.view.overlay, 'win');
     assert.equal(app.view.sound, false, 'The family chapter and reveal preserve mute.');
@@ -395,6 +504,7 @@ test('reduced motion shows the final still reward without an animation wait', ()
       gameModel.step(app.game, {}, 0.05);
       gameModel.step(app.game, { interact: true }, 0.05);
       if (index < 2) gameModel.finishConversation(app.game);
+      else finishActionForApp(app);
     }
     app.frame(100);
     assert.equal(app.game.phase, 'won');
@@ -417,6 +527,7 @@ test('reduced motion changed after loading is honored before dinner is served', 
       if (index === 4) app.setReducedMotion(true);
       gameModel.step(app.game, { interact: true }, 0.05);
       if (index < 2) gameModel.finishConversation(app.game);
+      else finishActionForApp(app);
     }
     app.frame(100);
     assert.equal(app.game.phase, 'won');
@@ -437,11 +548,50 @@ test('enabling reduced motion during the reveal immediately opens the still endi
       gameModel.step(app.game, {}, 0.05);
       gameModel.step(app.game, { interact: true }, 0.05);
       if (index < 2) gameModel.finishConversation(app.game);
+      else finishActionForApp(app);
     }
     app.frame(100);
     assert.equal(app.view.overlay, 'reveal');
     app.setReducedMotion(true);
     app.frame(150);
     assert.equal(app.view.overlay, 'win', 'Turning on reduced motion must end the animation wait on the next frame.');
+  } finally { app.dispose(); }
+});
+
+test('held E cannot reopen a song panel after Escape clears input', () => {
+  const app = entryPoint();
+  try {
+    app.action('start'); Object.assign(app.game.player, SONG_SITES[0]);
+    app.frame(0); app.window.fire('keydown', { code: 'KeyE' }); app.frame(16);
+    assert.equal(app.view.overlay, 'songs');
+    app.window.fire('keydown', { code: 'Escape' });
+    app.window.fire('keydown', { code: 'KeyE', repeat: true }); app.frame(32);
+    assert.equal(app.view.overlay, null);
+    app.window.fire('keyup', { code: 'KeyE' });
+    app.window.fire('keydown', { code: 'KeyE' }); app.frame(48);
+    assert.equal(app.view.overlay, 'songs');
+  } finally { app.dispose(); }
+});
+
+test('releasing and pressing E between frames starts the next dinner step', () => {
+  const app = entryPoint();
+  try {
+    app.action('start'); app.game.scene = 'house'; app.game.houseStep = 3;
+    Object.assign(app.game.player, HOUSE_TARGETS.find(target => target.id === 'cook'));
+    app.frame(0); app.game.interactionHeld = true;
+    app.window.fire('keyup', { code: 'KeyE' });
+    app.window.fire('keydown', { code: 'KeyE' }); app.frame(16);
+    assert.equal(app.game.actionAnimation?.kind, 'cook');
+  } finally { app.dispose(); }
+});
+
+test('sample failure reaches the title status and survives language and mute changes', () => {
+  const app = entryPoint();
+  try {
+    app.audio.failPendingSamples();
+    assert.equal(app.view.overlay, 'intro');
+    assert.equal(app.view.sampleFallback, 'Nástroje se nepodařilo načíst. Hudba použije syntetické zvuky. Ve výpravě můžeš pokračovat.');
+    app.action('language', 'en'); app.action('sound'); app.action('sound');
+    assert.equal(app.view.sampleFallback, 'The instruments couldn’t load. Music will use synthesized sounds. You can keep exploring.');
   } finally { app.dispose(); }
 });

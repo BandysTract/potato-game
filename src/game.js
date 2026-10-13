@@ -1,16 +1,17 @@
-import { BOUNDS, CREATURES, FAIRIES, HOME, HOUSE_BOUNDS, HOUSE_OBSTACLES, HOUSE_START, HOUSE_TARGETS, OBSTACLES, POTATOES, START } from './data.js';
+import { BOUNDS, CREATURES, FAIRIES, HOME, HOUSE_BOUNDS, HOUSE_OBSTACLES, HOUSE_START, HOUSE_TARGETS, OBSTACLES, POTATOES, START, SONGS, SONG_SITES, HOUSE_CAT } from './data.js';
 import { DIALOGUES, HOUSE_ACTIVITIES } from './dialogues.js';
 import { placeName, t } from './i18n.js';
+import { performanceDuration } from './songs.js';
 
 const SPEED = 5;
 const PLAYER_RADIUS = 0.45;
 const REACH = 2;
-const SONG_SECONDS = 2;
 const MAX_STEP = 0.05;
 
 const distanceTo = (player, target) => Math.hypot(player.x - target.x, player.z - target.z);
 const giftsReady = (game) => POTATOES.every(({ id }) => game.potatoes.includes(id))
-  && FAIRIES.every(({ id }) => game.tears.includes(id));
+  && FAIRIES.every(({ id }) => game.tears.includes(id))
+  && SONG_SITES.every(({ id }) => game.restoredSites.includes(id));
 
 export function createGame(language = 'cs', random = Math.random) {
   return {
@@ -20,11 +21,16 @@ export function createGame(language = 'cs', random = Math.random) {
     houseStep: 0,
     houseInteractionHeld: false,
     gardenWatered: false,
-    player: { ...START, facing: 1, moving: false },
+    learnedSongs: [],
+    restoredSites: [],
+    activeSong: null,
+    songSite: null,
+    interactionHeld: false,
+    actionAnimation: null,
+    percyPets: 0,
+    player: { ...START, facing: 1, direction: 0, moving: false },
     potatoes: [],
     tears: [],
-    activeFairy: null,
-    holdProgress: 0,
     conversation: null,
     conversationIndex: null,
     dialogueNext: Object.fromEntries(CREATURES.map(({ id }) => [id, Math.floor(random() * DIALOGUES[id].length)])),
@@ -40,7 +46,7 @@ export function createGame(language = 'cs', random = Math.random) {
 export function setLanguage(game, language) {
   if (language !== 'cs' && language !== 'en') return game;
   game.language = language;
-  if (game.messageKey) game.message = t(language, game.messageKey, game.messageValues);
+  if (game.messageKey) game.message = translateMessage(game);
   return game;
 }
 
@@ -67,32 +73,39 @@ export function finishConversation(game) {
   return game;
 }
 
+function potatoAvailable(game, id) {
+  const site = SONG_SITES.find(site => site.potatoId === id);
+  return !site || game.restoredSites.includes(site.id);
+}
+
 function remainingTargets(game) {
   return [
-    ...POTATOES.filter(({ id }) => !game.potatoes.includes(id)).map((potato) => ({ ...potato, type: 'potato' })),
-    ...FAIRIES.filter(({ id }) => !game.tears.includes(id)).map((fairy) => ({ ...fairy, type: 'fairy' })),
+    ...POTATOES.filter(({ id }) => !game.potatoes.includes(id) && potatoAvailable(game, id)).map(potato => ({ ...potato, type: 'potato' })),
+    ...FAIRIES.filter(({ id }) => !game.tears.includes(id)).map(fairy => ({ ...fairy, type: 'fairy' })),
+    ...SONG_SITES.filter(site => !game.restoredSites.includes(site.id) && game.learnedSongs.includes(site.songId)
+      && (site.id !== 'cottage' || game.tears.length === 3 && game.potatoes.length === 6)).map(site => ({ ...site, type: 'songSite' })),
   ];
 }
 
 export function getNearby(game) {
-  const candidates = game.scene === 'house' ? HOUSE_TARGETS.map((target, index) => ({
-    ...target, name: HOUSE_ACTIVITIES[index].name, type: 'house', ready: index === game.houseStep, completed: index < game.houseStep,
-  })) : [
-    ...remainingTargets(game),
-    ...CREATURES.map((creature) => ({ ...creature, type: 'creature' })),
+  const candidates = game.scene === 'house' ? [
+    ...HOUSE_TARGETS.map((target, index) => ({ ...target, name: HOUSE_ACTIVITIES[index].name, type: 'house', ready: index === game.houseStep, completed: index < game.houseStep })),
+    { ...HOUSE_CAT, type: 'cat', ready: true },
+  ] : [
+    ...POTATOES.filter(({ id }) => !game.potatoes.includes(id) && potatoAvailable(game, id)).map(potato => ({ ...potato, type: 'potato' })),
+    ...FAIRIES.map(fairy => ({ ...fairy, type: 'fairy', learned: game.tears.includes(fairy.id) })),
+    ...CREATURES.map(creature => ({ ...creature, type: 'creature' })),
+    ...SONG_SITES.filter(site => !site.potatoId || !game.restoredSites.includes(site.id) || game.potatoes.includes(site.potatoId))
+      .map(site => ({ ...site, type: 'songSite', ready: true, completed: game.restoredSites.includes(site.id) })),
     { ...HOME, type: 'home', ready: giftsReady(game) },
   ];
   let nearest = null;
   let nearestDistance = REACH;
   for (const target of candidates) {
     const distance = distanceTo(game.player, target);
-    if (distance <= nearestDistance) {
-      nearest = target;
-      nearestDistance = distance;
-    }
+    if (distance <= nearestDistance) { nearest = target; nearestDistance = distance; }
   }
-  return nearest && {
-    ...nearest,
+  return nearest && { ...nearest,
     name: placeName(game.language, nearest.type === 'creature' ? nearest.englishName : nearest.name),
     ...(nearest.place ? { place: placeName(game.language, nearest.place) } : {}),
   };
@@ -110,22 +123,74 @@ export function getGoal(game) {
     const distance = distanceTo(game.player, target);
     if (!nearest || distance < nearest.distance) {
       const label = target.type === 'potato' ? t(game.language, 'Find a potato: {place}', { place: placeName(game.language, target.name) })
-        : target.type === 'fairy' ? t(game.language, 'Sing with {name}', { name: target.name }) : t(game.language, 'Return to Hana’s cottage');
+        : target.type === 'fairy' ? t(game.language, 'Sing with {name}', { name: target.name })
+          : target.type === 'songSite' ? t(game.language, '{place}: needs a song', { place: placeName(game.language, target.name) })
+            : t(game.language, 'Return to Hana’s cottage');
       nearest = { x: target.x, z: target.z, id: target.id, type: target.type, label, distance };
     }
   }
   return nearest;
 }
 
-function stopSong(game) {
-  game.activeFairy = null;
-  game.holdProgress = 0;
+export function cancelSong(game) {
+  if (game.activeSong) setMessage(game, 'Song stopped. You can try again.');
+  game.activeSong = null;
+  game.songSite = null;
+  return game;
+}
+
+export function chooseSong(game, songId) {
+  const site = SONG_SITES.find(site => site.id === game.songSite);
+  if (game.phase !== 'playing' || game.scene !== 'outdoors' || game.conversation || game.activeSong || game.actionAnimation
+      || !site || game.restoredSites.includes(site.id) || distanceTo(game.player, site) > REACH || !game.learnedSongs.includes(songId)) return false;
+  game.activeSong = { kind: 'restore', songId, targetId: site.id, elapsed: 0, duration: performanceDuration(songId, 'restore'), progress: 0 };
+  game.songSite = null;
+  return true;
+}
+
+function completeSong(game, performance) {
+  if (performance.kind === 'learn') {
+    const song = SONGS.find(song => song.id === performance.songId);
+    if (!game.learnedSongs.includes(song.id)) game.learnedSongs.push(song.id);
+    if (!game.tears.includes(song.fairyId)) game.tears.push(song.fairyId);
+    setMessage(game, 'You learned {song}. A fairy tear joins your basket.', { song: song.name }, 7);
+    return;
+  }
+  const site = SONG_SITES.find(site => site.id === performance.targetId);
+  if (site.songId !== performance.songId) { setMessage(game, game.learnedSongs.includes(site.songId) ? site.learnedClue : site.clue, {}, 7); return; }
+  if (site.id === 'cottage' && game.tears.length < 3) {
+    setMessage(game, 'The garden needs all 3 fairy tears. Visit the remaining fairies first.', {}, 7);
+    return;
+  }
+  if (!game.restoredSites.includes(site.id)) game.restoredSites.push(site.id);
+  game.gardenWatered = game.restoredSites.includes('cottage');
+  setMessage(game, site.message, {}, 7);
+}
+
+function completeAction(game, action) {
+  if (action.kind === 'gather') {
+    if (!game.potatoes.includes(action.targetId)) game.potatoes.push(action.targetId);
+    setMessage(game, 'Potato found. {count} of 6 in your basket.', { count: game.potatoes.length });
+  } else if (action.kind === 'pet') {
+    game.percyPets += 1;
+    setMessage(game, 'Percy purrs and leans into your hand.');
+  } else {
+    setMessage(game, HOUSE_ACTIVITIES[game.houseStep].message, {}, 7);
+    if (action.kind === 'serve') { game.phase = 'won'; game.player.x = 0; game.player.z = 2.5; }
+    else game.houseStep += 1;
+  }
+}
+
+function translateMessage(game) {
+  const values = Object.fromEntries(Object.entries(game.messageValues).map(([key, value]) =>
+    [key, typeof value === 'string' ? t(game.language, value) : value]));
+  return t(game.language, game.messageKey, values);
 }
 
 export function setMessage(game, englishKey, values = {}, seconds = 5) {
   game.messageKey = englishKey;
   game.messageValues = { ...values };
-  game.message = t(game.language, englishKey, game.messageValues);
+  game.message = translateMessage(game);
   game.messageTime = seconds;
   return game;
 }
@@ -168,98 +233,73 @@ function movePlayer(game, dx, dz) {
 function homeInstruction(game) {
   const potatoes = POTATOES.filter(({ id }) => !game.potatoes.includes(id)).length;
   const tears = FAIRIES.filter(({ id }) => !game.tears.includes(id)).length;
-  setMessage(game, 'Still needed: potatoes {potatoes}, fairy tears {tears}. Then come home.', { potatoes, tears });
+  const sites = SONG_SITES.filter(({ id }) => !game.restoredSites.includes(id)).length;
+  setMessage(game, 'Still needed: potatoes {potatoes}, fairy tears {tears}, restored gardens {sites}.', { potatoes, tears, sites });
 }
 
 export function step(game, input = {}, dt = 0) {
   if (game.phase !== 'playing') return game;
   game.player.moving = false;
-  if (game.conversation !== null) {
-    stopSong(game);
-    return game;
-  }
-  const seconds = Number.isFinite(dt) ? Math.max(0, Math.min(MAX_STEP, dt)) : 0;
+  if (game.conversation !== null || game.songSite) return game;
+  const elapsed = Number.isFinite(dt) ? Math.max(0, dt) : 0;
+  const seconds = Math.min(MAX_STEP, elapsed);
   if (!seconds) return game;
-
-  game.elapsed += seconds;
-  game.messageTime = Math.max(0, game.messageTime - seconds);
-  if (!game.messageTime) {
-    game.message = '';
-    game.messageKey = '';
-    game.messageValues = {};
-  }
+  game.elapsed += elapsed;
+  game.messageTime = Math.max(0, game.messageTime - elapsed);
+  if (!game.messageTime) { game.message = ''; game.messageKey = ''; game.messageValues = {}; }
+  const pressed = Boolean(input.interact) && !game.interactionHeld;
+  game.interactionHeld = Boolean(input.interact);
+  game.houseInteractionHeld = game.interactionHeld;
 
   const screenX = Number.isFinite(input.x) ? input.x : 0;
   const screenY = Number.isFinite(input.y) ? input.y : 0;
   const magnitude = Math.max(1, Math.hypot(screenX, screenY));
-  const x = screenX / magnitude;
-  const y = screenY / magnitude;
+  const x = screenX / magnitude, y = screenY / magnitude;
+  const moving = Math.hypot(x, y) > .01;
+  if (game.activeSong && moving) cancelSong(game);
+  if (game.actionAnimation) {
+    const action = game.actionAnimation;
+    action.elapsed += elapsed;
+    action.progress = Math.min(1, action.elapsed / action.duration);
+    if (action.progress >= 1) { game.actionAnimation = null; completeAction(game, action); }
+    return game;
+  }
   movePlayer(game, (x + y) * Math.SQRT1_2 * SPEED * seconds, (-x + y) * Math.SQRT1_2 * SPEED * seconds);
-  if (game.player.moving && x !== 0) game.player.facing = Math.sign(x);
-
+  if (moving) {
+    if (x) game.player.facing = Math.sign(x);
+    game.player.direction = y < -.1 ? (x < 0 ? 3 : 2) : (x < 0 ? 1 : 0);
+  }
+  if (game.activeSong) {
+    const performance = game.activeSong;
+    performance.elapsed += elapsed;
+    performance.progress = Math.min(1, performance.elapsed / performance.duration);
+    if (performance.progress >= 1) { game.activeSong = null; completeSong(game, performance); }
+    return game;
+  }
   const nearby = getNearby(game);
-  if (game.scene === 'house') {
-    stopSong(game);
-    const pressed = Boolean(input.interact) && !game.houseInteractionHeld;
-    game.houseInteractionHeld = Boolean(input.interact);
-    if (!pressed || !nearby) return game;
-    if (!nearby.ready) {
-      setMessage(game, 'Follow the house guide to the next step.');
-      return game;
-    }
-    game.player.moving = false;
+  if (!pressed || !nearby || moving) return game;
+  if (nearby.type === 'cat') {
+    game.actionAnimation = { kind: 'pet', targetId: nearby.id, elapsed: 0, duration: 1.1, progress: 0 };
+  } else if (nearby.type === 'house') {
+    if (!nearby.ready) { setMessage(game, 'Follow the house guide to the next step.'); return game; }
     if (game.houseStep < 2) game.conversation = nearby.id;
-    else {
-      setMessage(game, HOUSE_ACTIVITIES[game.houseStep].message, {}, 7);
-      if (game.houseStep === 4) {
-        game.phase = 'won';
-        game.player.x = 0;
-        game.player.z = 2.5;
-      }
-      else game.houseStep += 1;
-    }
-    return game;
-  }
-  if (!input.interact || !nearby) {
-    stopSong(game);
-    return game;
-  }
-  if (nearby.type === 'potato') {
-    stopSong(game);
-    game.potatoes.push(nearby.id);
-    setMessage(game, 'Potato found. {count} of 6 in your basket.', { count: game.potatoes.length });
-  } else if (nearby.type === 'fairy') {
-    if (game.player.moving) {
-      stopSong(game);
-      return game;
-    }
-    if (game.activeFairy !== nearby.id) {
-      stopSong(game);
-      game.activeFairy = nearby.id;
-    }
-    game.holdProgress = Math.min(1, game.holdProgress + seconds / SONG_SECONDS);
-    if (game.holdProgress >= 1 - 0.000000001) {
-      game.tears.push(nearby.id);
-      stopSong(game);
-      setMessage(game, nearby.message, {}, 7);
-    }
-  } else if (nearby.type === 'creature') {
-    stopSong(game);
+    else game.actionAnimation = { kind: nearby.id, targetId: nearby.id, elapsed: 0, duration: nearby.id === 'cook' ? 3.2 : 1.8, progress: 0 };
+  } else if (nearby.type === 'potato') {
+    game.actionAnimation = { kind: 'gather', targetId: nearby.id, elapsed: 0, duration: 1.05, progress: 0 };
+  } else if (nearby.type === 'fairy' && !nearby.learned) {
+    const song = SONGS.find(song => song.fairyId === nearby.id);
+    game.activeSong = { kind: 'learn', songId: song.id, targetId: nearby.id, elapsed: 0, duration: performanceDuration(song.id, 'learn'), progress: 0 };
+    setMessage(game, 'Listen, then sing with {name}.', { name: nearby.name }, 7);
+  } else if (nearby.type === 'songSite' && !nearby.completed) game.songSite = nearby.id;
+  else if (nearby.type === 'creature') {
     game.conversation = nearby.id;
     game.conversationIndex = game.dialogueNext[nearby.id];
-    game.player.moving = false;
-  } else {
-    stopSong(game);
+  } else if (nearby.type === 'home') {
     if (nearby.ready) {
       game.scene = 'house';
-      game.player = { ...HOUSE_START, facing: 1, moving: false };
-      game.houseInteractionHeld = true;
-      game.gardenWatered = true;
-      game.player.moving = false;
-      setMessage(game, 'The fairy tears water the garden. Inside, John and Aldo are waiting.', {}, 7);
-    } else {
-      homeInstruction(game);
-    }
+      game.player = { ...HOUSE_START, facing: 1, direction: 0, moving: false };
+      setMessage(game, 'Inside, John, Aldo, and Percy are waiting.', {}, 7);
+    } else homeInstruction(game);
   }
   return game;
 }

@@ -440,6 +440,76 @@ h1 { position: relative; margin: 0; font-family: var(--serif); font-size: clamp(
   .ending-panel { width: 240px; }
 }
 .language-button:hover { background: #e7ebdc; }
+.songs-dialog { width: 440px; }
+.songs-dialog h2:focus { outline: none; }
+.song-choices { display: grid; gap: 10px; margin-top: 20px; }
+.song-choice { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 80px; padding: 14px; border: 1px solid #bdc7ab; border-radius: 7px; background: #edf0e1; text-align: left; }
+.song-choice:hover:not(:disabled) { background: #e1e8d3; border-color: #98ab83; }
+.song-choice > svg:first-child { width: 32px; height: 32px; color: #54795b; }
+.song-choice > svg:last-child { width: 17px; height: 17px; }
+.song-choice > span { display: grid; flex: 1; gap: 5px; }
+.song-choice strong { font-family: var(--serif); font-size: 19px; font-weight: 400; }
+.song-choice > span > span { font-size: 12px; line-height: 1.4; color: var(--muted); }
+.song-choice:disabled { background: #ecebdd; border-style: dashed; }
+.song-choice:disabled > svg { opacity: .5; }
+.song-choice .song-lock-hint { color: #74543b; }
+.map-site { fill: #f0ecd9; stroke: #946445; stroke-width: .45; stroke-dasharray: .65 .4; }
+.map-site-check { display: none; fill: none; stroke: #faf5e9; stroke-width: .4; stroke-linecap: round; stroke-linejoin: round; }
+.map-fairy-learned { display: none; fill: none; stroke: #426849; stroke-width: .45; stroke-linecap: round; stroke-linejoin: round; }
+[data-map-fairy].is-learned .map-fairy-learned { display: block; }
+.map-site-status { fill: #5a634b; font-size: 1.3px; paint-order: stroke; stroke: #f0ecd9; stroke-width: .4; }
+[data-map-site].is-restored .map-site { fill: #64815a; stroke: #faf5e9; stroke-dasharray: none; }
+[data-map-site].is-restored .map-site-check { display: block; }
+.map-legend .legend-site { border: 1.5px dashed #946445; background: transparent; }
+.map-legend .legend-site.restored { border-style: solid; border-color: #64815a; background: #64815a; }
+.character-portrait { float: right; width: 140px; height: 140px; margin: 0 0 12px 18px; border: 1px solid var(--line); border-radius: 10px; background-color: #e9eddc; background-size: cover; background-position: center; }
+.character-portrait[data-character='hana'], .character-portrait[data-character='john'] { background-image: url('/assets/characters/portraits.png'); background-size: 200% 100%; }
+.character-portrait[data-character='hana'] { background-position: left center; }
+.character-portrait[data-character='john'] { background-position: right center; }
+.intro-portrait { position: absolute; right: -8px; top: 0; width: 100px; height: 100px; float: none; margin: 0; }
+.intro-title-wrap h1 { padding-right: 84px; }
+/* Compact inventory and the current objective stay visible during play. */
+.basket-panel { width: 230px; padding: 10px 12px; }
+.basket-counts { justify-content: space-between; align-items: center; margin: 0; gap: 8px; }
+.basket-count { gap: 5px; }
+.basket-count > svg { width: 18px; height: 21px; }
+.basket-count > span { flex-direction: row; align-items: baseline; gap: 5px; }
+.basket-count strong { font-size: 19px; }
+.basket-count strong span { font-size: 11px; }
+.basket-count > span > span { font-size: 10px; }
+.song-inventory { display: flex; justify-content: space-around; gap: 7px; margin-top: 8px; }
+.song-inventory > span { position: relative; display: flex; justify-content: center; flex: 1; color: var(--muted); }
+.song-inventory > .is-learned { color: #426849; }
+.song-inventory > .is-learned::after { content: '✓'; position: absolute; top: 0; right: 9px; font-size: 11px; }
+.song-inventory svg { width: 19px; height: 19px; }
+.song-inventory-name { display: none; }
+.destination { margin-top: 8px; padding-top: 8px; }
+.destination-symbol, .destination .eyebrow, .goal-distance { display: none; }
+.destination > div { width: 100%; }
+.destination strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 11px; line-height: 1.4; }
+.house-progress { margin-top: 0; }
+.house-progress > strong { font-size: 19px; }
+.house-progress-stops { margin-top: 7px; }
+.interaction.is-singing .interaction-key { display: none; }
+.interaction.is-singing .interaction-copy > span { display: block; }
+@media (max-width: 700px) {
+  .basket-panel, #ui[data-scene='house'] .basket-panel { top: 104px; left: 12px; right: 12px; width: auto; max-width: calc(100% - 24px); padding: 8px 12px; display: block; }
+  .basket-counts { justify-content: flex-start; gap: 24px; }
+  .basket-count > span > span { font-size: 11px; }
+  .song-inventory { justify-content: flex-start; gap: 22px; margin-top: 6px; }
+  .song-inventory > span { flex: 0 0 32px; }
+  .song-inventory > .is-learned::after { right: -3px; }
+  .destination, #ui[data-scene='house'] .destination { border: 0; border-top: 1px solid var(--line); margin-top: 6px; padding: 6px 0 0; }
+  .destination strong { font-size: 11px; }
+  .region-label { display: none; }
+  .character-portrait { width: 110px; height: 110px; margin-left: 12px; }
+  .intro-portrait { width: 90px; height: 90px; margin: 0; }
+}
+@media (pointer: coarse), (max-width: 700px) {
+  .control-legend { left: 50%; bottom: max(17px, env(safe-area-inset-bottom)); max-width: calc(100% - 220px); }
+  .control-legend > span, .control-legend > span:nth-child(2) { display: none; }
+  .control-legend button kbd { display: none; }
+}
 .current-language { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .intro-topline { gap: 9px; }
 .intro-topline .eyebrow { flex: 1; }

@@ -1,0 +1,24 @@
+{
+  "idle": "Create a small additional animation sheet for the SAME Hana and John in reference 1 and exact portrait likenesses in reference 2. Transparent RGBA background. Three equal columns and two equal rows, 6 square cells, with clean gutters. Each frame full body, feet on an identical baseline near cell bottom, standing person fills 95 percent cell height. Same painted Czech storybook art, clothes, anatomy, lighting, faces, hair colors. Row 1 Hana exactly as top left in reference 1, cream embroidered blouse, blue skirt, apron, brown boots, wicker basket at hip, visible honey blonde braid with dark blonde roots, red scarf BEHIND hair. Frame 1 relaxed same idle pose, eyes open. Frame 2 EXACT same silhouette and pose, eyes gently closed for a blink only. Frame 3 EXACT same body alignment, eyes open, braid and scarf very slightly displaced by breeze. Row 2 John exactly as idle man in reference 1: sandy blonde swept up hair, neat short beard matching portrait, green rural shirt, brown waistcoat, olive trousers, brown boots. Frame 1 same relaxed standing idle, eyes open. Frame 2 EXACT same pose, eyes closed briefly for blink. Frame 3 EXACT same pose, eyes open, slight warm smile. Keep all six identities consistent, avoid moving feet or changing body size between frames. No furniture, ground shadows, scenery, text, grids, labels, or opaque background.",
+  "foliage": "Create a production woodland foliage sprite atlas, EXACT 2 columns x2 rows, square image, each equal cell isolated on genuine transparent alpha, no grid, no text. TOPLEFT and TOPRIGHT: two different lush horizontal sprays of Norway spruce boughs with fine deep evergreen needles and small warm tips, slightly drooping layered branches, seen three-quarter eye level. BOTTOMLEFT and BOTTOMRIGHT: two different rounded loose crowns of silver birch leaves, airy sunlit yellow-green little pointed leaves with depth and shadow gaps, no trunk. Premium detailed painterly gouache woodland game art, matte colors, soft golden light upper left, subdued moss greens and forest teals. These are foliage clusters to layer onto solid 3D trees in a Czech woodland storybook adventure. Branch silhouette irregular and organic, generous empty margins; fills center80%of eachcell. No full trees, no ground, no sky, no background gradient, no cast shadow, no objects. Must have genuine transparent gaps between leaves/needles and outside each cluster.",
+  "idle_layout_repair": "Built-in image_gen edit of idle.png. Preserve faces, costumes, poses, expressions, hair, lighting, and transparency. Arrange three equal columns and two equal rows with complete figures within 10% to 90% of each cell and aligned feet. Keep John wholly below the row boundary, leaving a transparent gap. No shadows, grid lines, stray pixels, or redesign.",
+  "actions_headroom_repair": "Use case: identity-preserve. Edit target: first image is the game action sheet. Second image is authoritative portrait reference for likeness, Hana left and John right. Create a repaired replacement strip containing ONLY three figures from the first image: the bottom-row goddess Hana, standing John, and waving John, in that left-to-right order. Layout: exactly three equal columns in one row on true transparent background, ideally 1536 by 768 pixels. Each full-body figure stays entirely within its own cell, with at least 8 percent transparent margin above the highest crown or hair, and 5 percent below the boots. Align the two Johns at identical height and foot baseline. Preserve the original faces, hairstyle, subtle expressions, anatomy, clothes, colors, poses, and painting style. Hana goddess retains her honey-blonde braid, darker roots, embroidered white dress, red sash, wheat bouquet, outstretched left hand, and COMPLETE rounded flower-and-wheat crown. John retains the sandy-blonde swept quiff, short beard, green rural shirt, brown waistcoat, olive trousers, and boots. Standing John has hand in pocket. Waving John has raised hand. No redesign, extra figures, labels, grid lines, backgrounds, ground shadows, or missing head tops. Ensure no opaque marks cross cell boundaries. Match the source characters closely.",
+  "actions_headroom_layout": {
+    "file": "actions-headroom.png",
+    "tool": "Built-in image_gen",
+    "width": 1774,
+    "height": 887,
+    "columnEdges": [
+      0,
+      0.42,
+      0.67,
+      1
+    ],
+    "frames": [
+      "goddess",
+      "john-standing",
+      "john-waving"
+    ],
+    "note": "The generator returned uneven spacing. Explicit transparent column boundaries preserve the complete figures. Original gathering, cooking, serving, and seated art is unchanged."
+  }
+}

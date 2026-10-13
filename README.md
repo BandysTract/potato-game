@@ -2,7 +2,7 @@
 
 **What’s cooking in Pec?**
 
-A gentle, illustrated browser adventure set in an imagined forest above Pec pod Sněžkou. Play as Hana, gather 6 potatoes, and sing a different song with each of 3 fairies along a winding forest loop. Talk with a fox, an owl, a deer, and a badger through short philosophical conversations. Come home to Hana’s husband John and their infant son Aldo, then prepare, cook, and serve dinner. After supper, Hana glows, rises gently, and becomes a pagan Slavic goddess. The Czech/English switch translates the whole game and preserves your progress.
+A gentle, illustrated browser adventure set in an imagined forest above Pec pod Sněžkou. Play as Hana, gather 6 potatoes, learn familiar Czech songs from 3 fairies, and restore gardens along a winding forest loop. Talk with a fox, an owl, a deer, and a badger through short philosophical conversations. Come home to Hana’s husband John, their infant son Aldo, and Percy the seal point tabby, then prepare, cook, and serve dinner. After supper, Hana glows, rises gently, and becomes a pagan Slavic goddess. The Czech/English switch translates the whole game and preserves your progress.
 
 ## Play locally
 
@@ -13,20 +13,21 @@ npm install
 npm run dev
 ```
 
-Open the local address printed by Vite. The game runs entirely in the browser. Once installed, it doesn't need an account, a connection to any game service, or downloaded artwork. Reloading begins a fresh adventure.
+Open the local address printed by Vite. The game runs entirely in the browser. Once installed, it doesn't need an account, a connection to any game service, or outside asset service. Reloading begins a fresh adventure.
 
 | Control | Action |
 | --- | --- |
 | WASD or arrow keys | Walk in the direction shown on screen |
 | E | Gather a nearby potato or talk with a creature |
-| Hold E while standing still | Sing with a fairy for 2 seconds |
-| E at the cottage | Go inside after gathering all the gifts |
+| E near a fairy | Listen, then automatically hum her song to learn it and receive a tear |
+| E at a garden | Choose a learned song to restore it |
+| E at the cottage | Go inside after gathering all gifts and restoring all 3 gardens |
 | E inside | Greet John, visit Aldo, prepare the potatoes, cook, and serve dinner |
 | M | Open or close the map |
 | H | How to play |
-| Esc | Pause or close the current panel |
+| Esc | Stop an unfinished song, pause, or close the current panel |
 
-The game starts in Czech. Choose “English” on the title screen or during play to switch languages. Touch screens have directional buttons and an action button. Use the title screen’s sound button to hear the opening theme. Music can also begin with your first click or keypress in the introduction. The sound button can mute it, and starting or replaying keeps your choice. The forest map shows every remaining gift and Hana’s position. Inside, it becomes a room plan with the five dinner steps. Release the action button between household tasks. Forest conversations can be revisited and don’t have right or wrong answers. There’s no combat, time limit, or failure penalty. The reduced-motion setting keeps the scenery still and shows a glowing goddess without the animated rise. Changing the setting during play takes effect immediately.
+The game starts in Czech. Choose “English” on the title screen or during play to switch languages. Touch screens have directional buttons and an action button. Use the title screen’s sound button to hear the opening theme. Music can also begin with your first click or keypress in the introduction. The sound button can mute it, and starting or replaying keeps your choice. The forest map shows available potatoes, fairies, restoration sites, and Hana’s position. A wrong song offers a clue and consumes nothing. Movement, pause, or losing focus stops an unfinished performance. Learned songs are reusable, and restored gardens stay restored. Two potatoes appear only after their garden is restored. The final rain song needs all 3 tears, and the tears remain in the inventory as keepsakes. Inside, it becomes a room plan with the five dinner steps. Release the action button between household tasks. Forest conversations can be revisited and don’t have right or wrong answers. There’s no combat, time limit, or failure penalty. The reduced-motion setting keeps the scenery still and shows a glowing goddess without the animated rise. Changing the setting during play takes effect immediately.
 
 ## Build and checks
 
@@ -42,9 +43,15 @@ On macOS, `node launcher/start-game.mjs` opens the production build in your defa
 
 ## Art and cultural notes
 
-All sprite art is original, drawn in code onto canvas textures. Three.js arranges the illustrations in layers with depth, paths, a brook, and an orthographic camera. The world renders at the viewport size with smooth edges. The visual direction is a contemporary illustrated 2D woodland, with matte foliage, expressive faces, shaped hands and paws, detailed clothing, and layered undergrowth. Trees and plants sway gently, ripples travel along the brook, and the fairies flutter their wings. The cottage has a furnished kitchen, John, and Aldo in his cot. Hana’s goddess form wears a floral crown and an embroidered dress, surrounded by a soft golden glow.
+The world uses a fixed perspective camera at a 30° downward angle and a 45° diagonal. Tree trunks, layered crowns, rocks, garden beds, cottage walls, and kitchen furniture have depth. Foreground foliage fades around Hana and the nearest interaction. Decorative terrain stays off the walking paths.
 
-An original 32-bar title waltz combines a woodwind melody, warm horn tones, strings, and plucked notes. Starting the walk switches to a separate 3/4 tune with woodwind, bass, and plucked chords. Hana’s synthesized solo voice uses changing vowel resonances, breath, gentle pitch slides, and delayed vibrato. It isn’t a human recording. Each fairy has a distinct melody and rhythm, and each animal has its own conversation theme. Music and collection sounds are synthesized locally through the browser.
+Original painted character sheets and portraits were generated for the game. Owner-supplied photos informed Hana, John, and Percy’s appearance. The photos themselves aren’t distributed. Hana has golden hair with darker roots, a braid, and an embroidered blouse. John has sandy-blonde swept hair and a neat short beard, following the later photo reference. Percy has an ivory body, striped points, a ringed tail, and pale blue eyes. The character folder records the generation prompts. Other illustrated textures are drawn in code.
+
+Hana has four directions and eight walking frames per direction, plus gathering, singing, preparing, cooking, serving, and goddess poses. Her walk includes passing steps and a body rise timed to each footfall. Idle frames add blinking and slight cloth movement. John greets Hana and sits for supper. Fairies keep fluttering after teaching their songs. Animals turn their heads, face Hana, and breathe. The cottage uses an open front and side for visibility. Percy can be petted without advancing dinner.
+
+The soundtrack uses fresh arrangements of “Ach synku, synku,” “Já do lesa nepojedu,” and “Prší, prší.” The same melody data drives Hana’s humming and the background music. The title, meadow, and dinner use “Ach synku, synku,” the woodland uses “Já do lesa nepojedu,” and the brook uses “Prší, prší.” Animal conversations retain their distinct original themes.
+
+Locally bundled violin, clarinet, plucked double bass, and tambourine recordings come from VSCO 2 Community Edition under CC0. Source links, tuning information, file hashes, and licensing are in `public/assets/audio/`. If samples fail to load, the same melodies play through synthesized instruments, and the game displays a short status message. Hana’s solo humming is synthesized, with breath and changing vowel resonances. There’s no recorded singing or lyric track. Music follows the browser’s audio clock. Performance completion follows elapsed game time, independently of sound or mute, while movement clamps a stalled frame to avoid jumps.
 
 Each animal has three original conversations in Czech and English. A new walk picks a random starting conversation for each animal. Revisiting an animal cycles through its three conversations before repeating. Changing language keeps the current conversation and selected reply. The exchanges explore fairness, knowledge, kindness, and life at home, without scoring Hana’s answers.
 

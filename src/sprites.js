@@ -123,120 +123,6 @@ function basket(c, x = 141, y = 188) {
   c.restore();
 }
 
-function hana(frame, transformed = false) {
-  return texture(192, 320, c => {
-    const step = [0, 9, 0, -9][frame], swing = step * .22;
-    const skirt = transformed ? ['#fff2db', '#e6dcc3', '#b1b7a1'] : ['#77adb6', '#3d7d93', '#24576c'];
-    // The weight rests on one foot, with shaped boots instead of round pads.
-    paintPath(c, `M78 250 Q77 273 ${76 - step} 292 L${87 - step} 299 L95 255Z`, '#706f59');
-    paintPath(c, `M106 249 Q109 275 ${115 + step} 293 L${126 + step} 294 L122 248Z`, '#555b4b');
-    paintPath(c, `M${75 - step} 284 L${86 - step} 286 Q${85 - step} 298 ${97 - step} 301 Q${101 - step} 309 ${87 - step} 309 L${64 - step} 308 Q${61 - step} 302 ${70 - step} 295Z`, '#384d45');
-    paintPath(c, `M${115 + step} 284 L${125 + step} 284 L${128 + step} 298 Q${142 + step} 300 ${141 + step} 307 Q${133 + step} 311 ${112 + step} 308 Q${109 + step} 297 ${115 + step} 284Z`, '#344940');
-    line(c, [[68 - step, 305], [95 - step, 306]], '#8b97806b', 1.3);
-    line(c, [[117 + step, 294], [124 + step, 294]], '#9ca68a', 1.3);
-    // Broad folds change the outer contour, rather than drawing seams over a cone.
-    paintPath(c, `M76 165 Q93 174 115 162 C120 196 127 233 ${139 + swing} 268 Q120 276 105 268 Q83 279 ${58 - swing} 267 Q68 224 76 165Z`, gradient(c, 58, 180, 139, 245, skirt), '#31556155', 1.1);
-    paintPath(c, 'M83 175 C81 208 73 240 70 266 Q80 270 83 270 C87 233 87 206 92 179Z', skirt[2] + '70');
-    paintPath(c, 'M109 173 C111 205 119 244 127 269 L135 268 C127 230 119 205 116 174Z', skirt[2] + '65');
-    paintPath(c, 'M96 184 C92 217 90 246 90 269 Q98 272 103 268 C104 238 104 213 108 180Z', skirt[0] + '6b');
-    paintPath(c, 'M62 261 Q82 270 99 266 Q119 273 134 262', null, transformed ? '#a45345' : '#c4dbce', 3);
-    // The gathered blouse has softly angular shoulders, elbows, and a fitted waist.
-    paintPath(c, 'M87 106 Q76 106 67 115 C56 125 60 146 62 155 L74 158 L77 144 Q74 164 77 177 Q96 186 117 174 L121 143 L129 153 L141 148 C134 117 121 111 107 108Z', gradient(c, 63, 113, 122, 177, ['#f7ebcd', '#e5d6b7', '#b7b59a']), '#8a927252', 1);
-    paintPath(c, 'M70 116 Q60 131 65 151 L73 151 Q70 135 78 121Z', '#fff2d480');
-    paintPath(c, 'M116 114 Q130 127 132 143 L140 147 Q134 120 120 114Z', '#9d9e8150');
-    for (const d of ['M65 141 Q70 147 74 142', 'M79 150 Q85 166 91 173', 'M107 133 Q114 151 112 168', 'M123 132 Q127 140 134 141']) paintPath(c, d, null, '#9b9b7e', 1.2);
-    // Forearms taper into wrists, and the basket arm bends towards her hip.
-    paintPath(c, `M63 150 Q65 159 ${60 + swing} 174 Q${57 + swing} 185 ${61 + swing} 190 L${67 + swing} 188 Q${65 + swing} 182 ${70 + swing} 170 Q76 158 74 151Z`, gradient(c, 59, 151, 74, 185, ['#f1c5a4', '#d8aa8b', '#bb876c']));
-    hand(c, 63 + swing, 185, -.06, '#e1b18e');
-    paintPath(c, 'M129 146 Q130 155 140 164 Q148 166 147 176 L140 179 Q141 174 135 171 Q122 159 120 151Z', gradient(c, 121, 146, 146, 175, ['#f1c5a4', '#d6a083']));
-    basket(c, 146, 187);
-    hand(c, 145, 168, -.5, '#e5b795', true, 1.05);
-    paintPath(c, 'M78 174 Q96 177 116 171 L118 179 Q96 186 77 180Z', transformed ? '#a35548' : '#98674d');
-    paintPath(c, 'M85 181 Q97 188 109 181 C113 207 113 235 122 249 Q96 261 73 248 C76 226 80 203 85 181Z', gradient(c, 75, 183, 121, 249, ['#f8eacb', '#e6d8b6', '#bdb99a']), '#a2a18477', .8);
-    paintPath(c, 'M87 188 C85 208 83 229 80 246 M107 189 Q111 216 115 244', null, '#fcf2d99c', 1.5);
-    for (let y = 205; y < 242; y += 9) { embroidery(c, 86, y, transformed ? '#ab5447' : '#5d7c70', 2.8); embroidery(c, 110, y - 3, transformed ? '#ab5447' : '#5d7c70', 2.8); }
-    paintPath(c, 'M81 239 Q97 247 116 239', null, transformed ? '#aa5749' : '#708775', 1.5);
-    for (let x = 73; x < 132; x += 9) embroidery(c, x, 264 + Math.sin(x * .05) * 2, transformed ? '#a45345' : '#c7dbce', 2.3);
-    // A shaped jaw, a three-quarter view, and a warm half-smile read as an adult.
-    paintPath(c, 'M90 94 L90 111 Q94 120 104 114 L108 91Z', '#c89575');
-    paintPath(c, 'M75 53 C73 33 91 28 108 36 C124 43 125 61 119 77 L112 99 Q94 111 79 91Z', '#624832');
-    paintPath(c, 'M88 44 C99 38 113 45 115 57 L116 65 Q120 70 124 73 Q126 76 117 79 L116 86 C114 96 105 103 98 103 Q89 101 85 92 L81 75 Q78 65 82 57Z', gradient(c, 83, 54, 119, 90, ['#f4c7a2', '#deb08d', '#b9866d']), '#ab7a644d', .8);
-    paintPath(c, 'M86 51 Q94 47 96 46 Q89 59 86 74 L80 72 Q78 57 86 51Z', '#76533a');
-    paintPath(c, 'M85 73 Q78 66 77 76 Q77 86 85 85', '#d3a17e', '#a3765b', .9);
-    paintPath(c, 'M80 75 Q84 73 82 81', null, '#9c6f56', .9);
-    eye(c, 99, 68, .93); eye(c, 113, 68, .63);
-    paintPath(c, 'M94 61 Q99 58 104 61 M110 62 Q113 60 116 63', null, '#75543f', 1.5);
-    paintPath(c, 'M109 69 Q106 77 109 79 Q113 81 116 78', null, '#ac795f', .95);
-    ellipse(c, 116, 77, 1.3, .7, '#96654f');
-    ellipse(c, 98, 79, 7, 3, '#c9877355', -.15);
-    paintPath(c, 'M103 87 Q108 91 114 86', null, '#955b52', 1.4);
-    paintPath(c, 'M105 91 Q109 93 112 91', null, '#ecc6a2', 1.1);
-    // A loosely tied scarf wraps around the head. Curved braid sections overlap.
-    paintPath(c, 'M73 59 C69 44 76 32 90 30 Q112 24 120 45 L122 56 Q105 44 91 52 Q78 53 73 59Z', gradient(c, 74, 31, 117, 62, ['#dc8b6a', '#b95445', '#8d3c37']), '#8f493838', .8);
-    paintPath(c, 'M72 59 Q64 66 56 76 Q65 78 73 72 L65 97 Q79 91 83 67Z', '#a84b40');
-    paintPath(c, 'M76 61 Q76 80 69 86 Q63 91 61 103 Q76 99 83 86 L87 65Z', '#bd6250');
-    paintPath(c, 'M79 42 Q94 31 110 40 M79 58 Q96 48 115 53', null, '#efaa7d9c', 1.4);
-    for (const [x, y] of [[87, 39], [100, 36], [111, 42], [76, 76]]) embroidery(c, x, y, '#ead1a0', 2);
-    for (let i = 0; i < 6; i++) {
-      const y = 88 + i * 9, x = 83 - Math.sin(i * .5) * 7;
-      paintPath(c, `M${x} ${y - 5} Q${x - 12} ${y - 1} ${x - 5} ${y + 7} Q${x + 4} ${y + 8} ${x + 6} ${y}Z`, i % 2 ? '#755036' : '#8d613e');
-      paintPath(c, `M${x - 6} ${y} Q${x} ${y + 2} ${x + 3} ${y - 1}`, null, '#bd8a5685', 1.4);
-    }
-    line(c, [[78, 137], [82, 139]], '#c77355', 3);
-    paintPath(c, 'M87 114 Q95 125 107 114 M91 128 Q96 130 101 127', null, '#a99b7c', 1.4);
-    if (transformed) {
-      for (const x of [76, 86, 97, 108, 120, 131]) { embroidery(c, x, 255 + Math.sin(x) * 2, '#a45345', 3.2); }
-      paintPath(c, 'M69 40 Q90 15 117 34', null, '#758b50', 3);
-      for (const [x, y, angle] of [[72, 32, -.65], [83, 21, -.3], [98, 18, .1], [111, 25, .4], [121, 37, .65]]) {
-        leaf(c, x, y + 5, 17, 5, angle - .5, '#8f9b5a'); leaf(c, x, y + 5, 16, 4, angle + .5, '#afad68');
-        line(c, [[x, y + 4], [x + Math.sin(angle) * 9, y - 10]], '#bd9b4b', 1.5);
-        for (let n = 0; n < 3; n++) { ellipse(c, x - 2 + Math.sin(angle) * n * 3, y - n * 4, 2, 3.5, '#d8ba68', angle - .4); ellipse(c, x + 3 + Math.sin(angle) * n * 3, y - n * 4 - 2, 2, 3.5, '#edcd7d', angle + .4); }
-      }
-      for (const [x, y] of [[75, 29], [92, 20], [114, 31]]) { for (let n = 0; n < 5; n++) ellipse(c, x + Math.cos(n * 1.256) * 3, y + Math.sin(n * 1.256) * 3, 3, 2, '#f7eaca', n); ellipse(c, x, y, 2, 2, '#bc9350'); }
-    }
-  });
-}
-
-function john() {
-  return texture(192, 320, c => {
-    // Relaxed weight, a bent arm, rolled sleeves, and tailored rather than boxy clothes.
-    paintPath(c, 'M74 207 Q71 248 75 286 L89 287 Q88 263 95 234 L103 220Z', gradient(c, 71, 213, 98, 280, ['#8b8668', '#676d56', '#4a5748']));
-    paintPath(c, 'M100 219 Q101 246 112 288 L126 286 Q123 257 125 204Z', '#5c6550');
-    paintPath(c, 'M76 281 L89 282 L91 297 Q100 303 94 308 L63 308 Q57 303 70 295Z', '#354b41');
-    paintPath(c, 'M112 280 L124 279 L130 295 Q146 298 143 306 Q129 312 107 307 Q103 301 112 280Z', '#30463d');
-    paintPath(c, 'M77 224 Q78 249 78 273 M117 225 Q113 253 120 274', null, '#a6a08180', 1.5);
-    paintPath(c, 'M80 109 Q69 110 60 120 C53 135 54 151 58 167 L73 170 L77 148 L77 210 Q98 221 125 207 L126 150 L133 164 L146 158 Q143 123 122 114 L108 107Z', gradient(c, 65, 116, 132, 199, ['#c7c6a0', '#95a382', '#657f65']), '#506a5355', 1);
-    paintPath(c, 'M58 148 Q65 145 75 150 L74 162 Q67 167 59 162Z', '#d1cfaa');
-    paintPath(c, 'M126 147 Q134 143 141 149 L144 159 Q134 165 127 159Z', '#c5c6a1');
-    paintPath(c, 'M59 163 Q58 173 59 184 Q64 194 77 191 L79 184 Q66 186 68 177 L70 165Z', '#d5a383');
-    hand(c, 78, 184, -.7, '#e5b592', true);
-    paintPath(c, 'M135 161 Q134 179 144 187 L139 193 Q127 185 124 166Z', '#d2a07f');
-    hand(c, 141, 188, .23, '#ddb08b');
-    paintPath(c, 'M82 111 L94 127 Q93 160 93 206 Q80 218 70 212 L74 150 Q69 121 82 111Z', gradient(c, 72, 118, 92, 210, ['#917456', '#69523f']), '#534c393b', 1);
-    paintPath(c, 'M109 111 Q120 115 122 143 L130 207 Q117 216 104 208 L99 126Z', gradient(c, 103, 119, 127, 205, ['#ac8b62', '#7b6248']));
-    paintPath(c, 'M84 115 L91 129 L80 145 M108 115 L103 130 L116 145', null, '#c2a378', 1.6);
-    paintPath(c, 'M80 167 Q84 170 89 168 L88 185 Q83 190 77 187Z', '#a18a60', '#cfb68a', 1);
-    for (const y of [146, 166, 187]) ellipse(c, 98, y, 1.8, 2, '#cfb079');
-    paintPath(c, 'M98 97 L96 113 Q99 122 108 116 L114 96Z', '#c59473');
-    paintPath(c, 'M76 55 C73 40 82 28 96 28 C117 23 128 43 122 62 L119 85 Q107 109 90 99 Q78 91 76 55Z', '#624830');
-    paintPath(c, 'M86 47 Q103 38 117 49 L117 62 Q120 70 125 74 Q125 78 118 79 L119 87 Q116 99 105 105 Q94 103 86 96 L80 74Z', gradient(c, 82, 48, 122, 100, ['#efc4a0', '#d5a383', '#ac7c64']), '#9f725d40', .8);
-    paintPath(c, 'M79 69 Q71 61 73 77 Q75 86 82 83', '#c99977', '#9d7058', 1);
-    paintPath(c, 'M75 72 Q80 68 78 80', null, '#976d53', 1);
-    paintPath(c, 'M77 63 C72 49 81 31 99 29 Q119 27 127 50 C115 48 111 39 104 42 Q89 52 83 52 L81 76Z', '#624b35');
-    for (const d of ['M82 42 Q97 30 113 37', 'M82 48 Q96 42 100 35', 'M108 38 Q114 43 121 45']) paintPath(c, d, null, '#af865c80', 1.3);
-    paintPath(c, 'M85 85 Q93 88 101 91 Q109 94 119 86 Q119 101 106 109 Q92 106 85 96Z', '#79583e');
-    for (let n = 0; n < 10; n++) paintPath(c, `M${88 + n * 2.7} ${93 + Math.sin(n) * 2} L${92 + n * 2.1} ${103 + Math.sin(n) * 2}`, null, '#b38a5f88', 1);
-    eye(c, 100, 66, .93, '#4f706a'); eye(c, 114, 66, .62, '#4f706a');
-    paintPath(c, 'M94 59 Q100 56 105 60 M111 59 Q115 58 118 62', null, '#644b36', 1.8);
-    paintPath(c, 'M110 69 Q106 77 111 79 L117 77', null, '#a3745a', 1);
-    ellipse(c, 117, 77, 1.4, .7, '#805c47');
-    paintPath(c, 'M103 90 Q108 94 115 89', null, '#d2a484', 1.7);
-    paintPath(c, 'M93 78 Q98 80 102 78', null, '#a37b6266', .8);
-    paintPath(c, 'M97 115 L91 123 L98 131 L105 122 L110 116', null, '#e4dbb8', 1.4);
-    line(c, [[70, 303], [92, 304]], '#81907a', 1.3);
-  });
-}
-
 function aldoCot() {
   return texture(384, 300, c => {
     // Aldo lies on his back on a flat mattress, inside a cot with raised rails.
@@ -563,205 +449,7 @@ function fairy(kind, wingPhase = 0) {
   });
 }
 
-function cottage() {
-  return texture(640, 560, c => {
-    // Weathered plaster, timber, and individual tiles make a lived-in cottage.
-    c.fillStyle = gradient(c, 145, 300, 486, 515, ['#fff3cc', '#f3deb0', '#cfbc8e']);
-    c.beginPath(); c.moveTo(136, 266); c.lineTo(473, 267); c.lineTo(488, 526);
-    c.quadraticCurveTo(486, 540, 471, 540); c.lineTo(137, 540);
-    c.quadraticCurveTo(120, 539, 123, 522); c.closePath(); c.fill();
-    shape(c, [[471, 267], [562, 225], [572, 484], [488, 540]],
-      gradient(c, 478, 280, 574, 469, ['#d8d2a6', '#b5bb8e', '#969e79']));
-    // The side wall stays darker, while the eaves cast a wide soft painted shadow.
-    shape(c, [[137, 282], [476, 291], [478, 333], [135, 322]],
-      gradient(c, 0, 288, 0, 334, ['#927d5255', '#927d5200']));
-    shape(c, [[476, 280], [565, 228], [567, 269], [478, 324]], '#596f5633');
-    c.fillStyle = gradient(c, 286, 113, 553, 276, ['#d78a58', '#ba5d43', '#793f35']);
-    c.beginPath(); c.moveTo(268, 89); c.quadraticCurveTo(432, 136, 594, 207);
-    c.quadraticCurveTo(551, 257, 478, 301); c.lineTo(96, 285); c.closePath(); c.fill();
-    c.strokeStyle = '#f1ad7388'; c.lineWidth = 4;
-    for (let i = 0; i < 7; i++) {
-      const t = (i + 1) / 8;
-      c.beginPath(); c.moveTo(275 + t * 306, 100 + t * 108);
-      c.quadraticCurveTo(390 + t * 160, 202 + t * 48, 480 + t * 93, 284 - t * 69); c.stroke();
-    }
-    c.fillStyle = gradient(c, 181, 144, 385, 295, ['#eda66a', '#d9784e', '#ad4e3b']);
-    c.beginPath(); c.moveTo(96, 281); c.quadraticCurveTo(183, 181, 268, 89);
-    c.quadraticCurveTo(367, 181, 481, 281); c.quadraticCurveTo(293, 301, 96, 281); c.fill();
-    // Rounded tile rows follow the roof's slope, with a lighter lip on each row.
-    c.save(); c.beginPath(); c.moveTo(107, 280); c.lineTo(269, 103); c.lineTo(467, 280); c.closePath(); c.clip();
-    for (let row = 0; row < 8; row++) {
-      const y = 129 + row * 21;
-      const half = (y - 92) * 1.02;
-      c.strokeStyle = '#8c463755'; c.lineWidth = 4;
-      c.beginPath(); c.moveTo(270 - half, y); c.quadraticCurveTo(279, y + 13, 280 + half, y); c.stroke();
-      c.strokeStyle = '#ffd49a66'; c.lineWidth = 2;
-      c.beginPath(); c.moveTo(270 - half, y - 4); c.quadraticCurveTo(279, y + 7, 280 + half, y - 4); c.stroke();
-      for (let i = -6; i <= 6; i++) {
-        const x = 277 + i * 29 + (row % 2) * 14;
-        c.strokeStyle = '#9c4c3a55'; c.lineWidth = 2;
-        c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + 6, y + 9, x + 9, y + 20); c.stroke();
-      }
-    }
-    c.restore();
-    c.strokeStyle = '#7f4a36'; c.lineWidth = 10;
-    c.beginPath(); c.moveTo(96, 284); c.quadraticCurveTo(291, 301, 479, 286); c.lineTo(592, 209); c.stroke();
-    c.strokeStyle = '#f1ae7366'; c.lineWidth = 3;
-    c.beginPath(); c.moveTo(99, 280); c.quadraticCurveTo(293, 295, 478, 281); c.stroke();
-    // Chimney faces have separate light and shaded surfaces.
-    shape(c, [[421, 108], [452, 117], [455, 189], [423, 178]],
-      gradient(c, 421, 110, 456, 180, ['#ead5a6', '#bba17d']));
-    shape(c, [[452, 116], [461, 111], [464, 184], [455, 189]], '#8f765c');
-    shape(c, [[417, 103], [452, 112], [460, 108], [426, 98]], '#f9dfae');
-    for (let row = 0; row < 3; row++) line(c, [[424, 132 + row * 17], [453, 141 + row * 17]], '#a0876955', 2);
-    // Timber edging, a recessed green door, and flower boxes keep the Czech cottage cues.
-    line(c, [[139, 291], [136, 527], [475, 528], [469, 301]], '#876f4f', 11);
-    line(c, [[142, 300], [140, 522]], '#c7ab7888', 3);
-    line(c, [[140, 309], [467, 320]], '#fff3cb66', 3);
-    c.fillStyle = '#6c7050'; c.beginPath(); c.roundRect(266, 364, 79, 166, [16, 16, 2, 2]); c.fill();
-    c.fillStyle = gradient(c, 278, 380, 337, 515, ['#a8ac73', '#7d8e61', '#586e53']);
-    c.beginPath(); c.roundRect(277, 375, 57, 151, [12, 12, 2, 2]); c.fill();
-    line(c, [[285, 391], [283, 521]], '#d0cd8a55', 3);
-    for (const x of [301, 319]) line(c, [[x, 382], [x, 522]], '#536b4e77', 2);
-    volume(c, 325, 455, 4, 5, '#fff3bd', '#d9ba72', '#957644');
-    shape(c, [[261, 528], [348, 528], [361, 544], [248, 544]],
-      gradient(c, 0, 528, 0, 544, ['#d4c8a3', '#969b7f']));
-    line(c, [[250, 544], [359, 544]], '#858d7533', 3);
-    for (const x of [177, 373]) {
-      c.fillStyle = '#8e805c'; c.beginPath(); c.roundRect(x - 3, 352, 59, 67, 4); c.fill();
-      c.fillStyle = gradient(c, x + 6, 360, x + 47, 409, ['#e0e5bc', '#9dbdaf', '#6b998b']);
-      c.fillRect(x + 5, 360, 43, 50);
-      shape(c, [[x + 8, 361], [x + 27, 361], [x + 7, 392]], '#fffce255');
-      line(c, [[x + 26, 357], [x + 26, 415]], '#fff1c5', 5);
-      line(c, [[x + 2, 384], [x + 51, 384]], '#f5e8ba', 5);
-      for (const sx of [x - 18, x + 57]) {
-        c.fillStyle = gradient(c, sx, 350, sx + 14, 416, ['#9db794', '#608e76', '#477663']);
-        c.beginPath(); c.roundRect(sx, 351, 14, 66, 3); c.fill();
-        for (let y = 359; y < 414; y += 9) line(c, [[sx + 2, y], [sx + 11, y]], '#c6d2a666', 1.5);
-      }
-      c.fillStyle = gradient(c, x - 4, 422, x + 60, 438, ['#d6a769', '#a27349', '#805f3e']);
-      c.beginPath(); c.roundRect(x - 5, 421, 65, 16, 4); c.fill();
-      for (let i = 0; i < 6; i++) {
-        volume(c, x + i * 10, 420, 9, 9, '#a8be75', '#779758', '#4e754e');
-        volume(c, x + i * 10 + 2, 412 - i % 2 * 5, 5, 5, '#ffe1a0', i % 2 ? '#efbb73' : '#df8062', '#b6614c');
-      }
-    }
-    volume(c, 304, 336, 12, 10, '#fff4c6', '#e6c88b', '#ac8b60');
-    ellipse(c, 304, 336, 6, 6, '#8c8760');
-    for (let i = 0; i < 8; i++) {
-      const x = 128 + i * 44;
-      shape(c, [[x, 524], [x + 29, 521], [x + 39, 536], [x + 6, 540]], i % 3 ? '#9da78a' : '#bac0a0');
-      line(c, [[x + 4, 525], [x + 26, 524]], '#dbd9b066', 1.5);
-    }
-    for (const [x, y] of [[153, 340], [442, 490], [360, 453], [148, 475]]) {
-      line(c, [[x, y], [x + 5, y + 10], [x + 2, y + 22]], '#b8ad8560', 1.5);
-    }
-    for (let i = 0; i < 35; i++) {
-      const x = 153 + i % 7 * 43, y = 324 + Math.floor(i / 7) * 41;
-      line(c, [[x, y], [x + 17, y + 1]], '#fff7d32e', 1.6);
-    }
-    // Ivy follows the shaded corner instead of covering the door or windows.
-    line(c, [[493, 525], [504, 442], [488, 388], [506, 314]], '#62784b', 4);
-    for (let i = 0; i < 22; i++) {
-      const y = 515 - i * 9, x = 498 + Math.sin(i * .7) * 10;
-      leaf(c, x, y, 17 + i % 3 * 3, 7, i % 2 ? .8 : -.8, ['#658455', '#8b9d65', '#a4ab72'][i % 3]);
-    }
-    for (let i = 0; i < 18; i++) {
-      const x = 120 + i * 18, y = 271 + Math.sin(i * .8) * 5;
-      leaf(c, x, y, 11, 6, i * .7, '#819063aa');
-    }
-    line(c, [[189, 359], [189, 406]], '#f8efcf88', 1);
-    line(c, [[414, 359], [414, 406]], '#f8efcf88', 1);
-    shape(c, [[278, 485], [332, 485], [332, 490], [278, 490]], '#597351');
-    for (let x = 282; x < 331; x += 9) line(c, [[x, 403], [x, 460]], '#c4c59450', .9);
-  });
-}
-
-function worktop() {
-  return texture(384, 320, c => {
-    // A timber sideboard, with a stone work surface and visible joined doors.
-    shape(c, [[64, 140], [282, 103], [328, 163], [114, 200]], '#bba477');
-    shape(c, [[71, 155], [279, 120], [280, 253], [117, 298], [77, 267]], '#6e654c');
-    shape(c, [[116, 191], [323, 156], [319, 278], [115, 308]], gradient(c, 123, 184, 321, 285, ['#b89b6e', '#8c7758', '#5d5d48']));
-    for (const x of [123, 316]) line(c, [[x, 198], [x, 302]], '#d6b585', 5);
-    line(c, [[119, 215], [316, 184]], '#4c5341', 3);
-    line(c, [[121, 286], [316, 258]], '#d8b780', 3);
-    for (let door = 0; door < 2; door++) {
-      const x = 131 + door * 91;
-      shape(c, [[x, 220 - door * 14], [x + 71, 209 - door * 14], [x + 70, 274 - door * 14], [x, 286 - door * 14]], '#8b7958');
-      line(c, [[x + 6, 225 - door * 14], [x + 64, 216 - door * 14], [x + 64, 268 - door * 14]], '#c4a67b', 2);
-      for (let i = 0; i < 6; i++) line(c, [[x + 12 + i * 8, 226 - door * 14], [x + 12 + i * 8, 275 - door * 14]], '#554f3940', 1);
-      ellipse(c, x + (door ? 12 : 60), 238 - door * 14, 3, 4, '#d6b771');
-    }
-    line(c, [[68, 144], [113, 187], [326, 155]], '#ead7ac', 4);
-    line(c, [[72, 152], [113, 196], [323, 164]], '#73694f', 3);
-    for (let i = 0; i < 18; i++) {
-      const x = 104 + i * 10;
-      line(c, [[x, 155], [x + 19, 151]], '#eee2bd55', 1);
-    }
-    shape(c, [[73, 146], [112, 140], [137, 176], [131, 241], [108, 247], [108, 182]], '#b0c2b6');
-    for (let i = 0; i < 7; i++) line(c, [[109 + i * 3, 181], [110 + i * 3, 237]], '#edf0d380', 1);
-    for (let i = 0; i < 5; i++) embroidery(c, 117, 193 + i * 9, '#496f67', 2);
-    ellipse(c, 263, 123, 18, 10, '#aa7556');
-    shape(c, [[246, 109], [279, 105], [277, 127], [250, 130]], '#bd8a63');
-    ellipse(c, 263, 107, 17, 7, '#dfad7d'); ellipse(c, 263, 107, 12, 4, '#6e5740');
-    for (let i = 0; i < 5; i++) leaf(c, 263, 109, 28 + i % 3 * 5, 6, (i - 2) * .3, '#6e8f61');
-  });
-}
-
-function stove() {
-  return texture(320, 440, c => {
-    // Blue glazed tiles, an iron fire door, and a copper soup pot.
-    shape(c, [[77, 265], [137, 237], [257, 278], [202, 306]], '#6a6b59');
-    shape(c, [[78, 270], [204, 307], [203, 422], [77, 383]], '#7d998f');
-    shape(c, [[204, 307], [257, 280], [255, 395], [203, 422]], '#496f68');
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 4; col++) {
-        const x = 84 + col * 29, y = 281 + row * 28 + col * 8.5;
-        shape(c, [[x, y], [x + 25, y + 7], [x + 25, y + 30], [x, y + 23]], ['#7f9f92', '#a1b5a1', '#6d9185'][row % 3]);
-        line(c, [[x + 2, y + 3], [x + 22, y + 9]], '#d9ddbd70', 1.4);
-        if ((col + row) % 3 === 0) embroidery(c, x + 13, y + 16, '#d3d7b4', 4);
-      }
-      line(c, [[210, 313 + row * 25], [252, 291 + row * 25]], '#9cbaaa70', 1.5);
-    }
-    shape(c, [[106, 334], [169, 352], [169, 397], [106, 378]], '#2f443d');
-    line(c, [[111, 339], [163, 354], [164, 390], [111, 376], [111, 339]], '#b3b598', 2);
-    shape(c, [[120, 352], [151, 361], [151, 380], [120, 371]], '#a96542');
-    line(c, [[121, 366], [148, 374]], '#d99e58', 3);
-    line(c, [[154, 371], [176, 375]], '#c7c3a1', 3);
-    shape(c, [[150, 25], [165, 31], [165, 254], [149, 249]], '#3e5049');
-    shape(c, [[165, 31], [173, 26], [173, 249], [165, 254]], '#273e38');
-    line(c, [[153, 36], [153, 241]], '#839788', 1.5);
-    for (const y of [66, 153, 223]) line(c, [[149, y], [165, y + 5], [173, y]], '#849789', 2);
-    ellipse(c, 167, 274, 44, 19, '#273f36');
-    shape(c, [[126, 234], [209, 236], [204, 273], [139, 289], [126, 267]], gradient(c, 125, 236, 212, 281, ['#d8ac77', '#a37652', '#70533f']));
-    ellipse(c, 167, 236, 42, 17, '#c59f6d'); ellipse(c, 167, 236, 36, 12, '#c8b978');
-    for (const [x, y] of [[148, 232], [178, 241], [187, 229]]) ellipse(c, x, y, 6, 3, '#e3d3a4', -.2);
-    line(c, [[122, 245], [111, 240], [104, 248], [112, 257], [127, 259]], '#6d6450', 4);
-    line(c, [[209, 244], [224, 243], [229, 253], [218, 260], [206, 259]], '#6d6450', 4);
-    line(c, [[134, 258], [193, 264]], '#efd0a077', 2);
-  });
-}
-
-function supperTable() {
-  return texture(384, 320, c => {
-    shape(c, [[115, 162], [135, 161], [131, 290], [113, 287]], '#625843');
-    shape(c, [[270, 151], [288, 150], [286, 274], [269, 280]], '#625843');
-    line(c, [[122, 251], [277, 238]], '#867052', 8);
-    shape(c, [[61, 138], [256, 98], [325, 155], [140, 211], [62, 166]], '#745e45');
-    shape(c, [[61, 136], [256, 98], [325, 152], [140, 195]], gradient(c, 76, 124, 313, 172, ['#d6b982', '#b39266', '#91764f']));
-    for (let i = 0; i < 7; i++) line(c, [[74 + i * 8, 141 + i * 6], [271 + i * 6, 111 + i * 6]], '#6e614044', 1.2);
-    line(c, [[64, 136], [140, 194], [324, 151]], '#ebcda0', 2.5);
-    shape(c, [[136, 120], [179, 112], [255, 170], [253, 227], [218, 237], [218, 183]], '#c2c9a4');
-    for (let i = 0; i < 5; i++) {
-      line(c, [[221 + i * 6, 185], [222 + i * 6, 229]], '#78947b', 1);
-      embroidery(c, 232, 186 + i * 9, '#668377', 2.8);
-    }
-    for (let i = 0; i < 9; i++) line(c, [[219 + i * 4, 233], [219 + i * 4, 242]], '#ded6b2', 1.2);
-  });
-}
-
-function forestCreature(kind) {
+function forestCreature(kind, frame = 0) {
   return texture(256, 320, c => {
     if (kind === 'fox') {
       // Seated fox: a curved spine, separate hocks, a heavy brush, and a narrow muzzle.
@@ -772,6 +460,7 @@ function forestCreature(kind) {
       paintPath(c, 'M130 235 Q134 261 132 283 L125 296 Q120 304 137 306 Q151 305 146 298 L144 253Z', '#554c3a');
       paintPath(c, 'M165 237 Q166 265 176 284 L177 298 Q171 305 191 306 Q204 304 194 297 L185 284 L180 241Z', '#493f32');
       for (const x of [128, 137, 181, 189]) paintPath(c, `M${x} 299 L${x + 2} 304`, null, '#b3a887', .9);
+      c.save(); c.translate(165, 169); c.rotate((frame - 1) * .055); c.translate(-165, -169);
       // Ears and cheeks have a furry edge rather than a single geometric mask.
       paintPath(c, 'M119 141 Q112 114 118 86 Q135 98 148 122 C162 116 183 118 189 128 Q202 111 216 102 Q221 129 210 150 Q213 168 198 182 L178 194 L166 184 L146 190 L130 172 L123 175Z', gradient(c, 117, 116, 214, 184, ['#dea568', '#bb7043', '#834e36']), '#71473266', 1.2);
       paintPath(c, 'M120 96 Q128 106 137 128 L120 137 Q119 115 120 96Z', '#5b4e3a');
@@ -783,6 +472,7 @@ function forestCreature(kind) {
       ellipse(c, 147, 146, 2.3, 3, '#243b31'); ellipse(c, 186, 141, 2.2, 3, '#243b31');
       ellipse(c, 148, 145, .8, .8, '#f8ebcf'); ellipse(c, 187, 140, .8, .8, '#f8ebcf');
       paintPath(c, 'M177 186 Q185 189 192 183', null, '#7a6547', 1.3);
+      c.restore();
       for (let i = 0; i < 16; i++) {
         const x = 130 + i % 4 * 13, y = 193 + Math.floor(i / 4) * 17;
         paintPath(c, `M${x} ${y} Q${x - 3} ${y + 6} ${x + 1} ${y + 10}`, null, i % 2 ? '#e8b67970' : '#a9886355', 1.2);
@@ -802,6 +492,7 @@ function forestCreature(kind) {
         paintPath(c, `M${91 - n * .6} ${188 + n * 7} Q${77 + n} ${216 + n * 3} ${90 + n * .5} ${243 + n}`, null, '#b6b38a85', 1.7);
         paintPath(c, `M${162 + n * .7} ${190 + n * 6} Q${179 - n} ${215 + n * 3} ${166 - n * .3} ${244 + n}`, null, '#a4ad8390', 1.5);
       }
+      c.save(); c.translate(129, 152); c.rotate((frame - 1) * .08); c.translate(-129, -152);
       paintPath(c, 'M68 120 C68 80 92 51 129 58 C165 49 191 81 189 119 Q185 156 157 175 L129 167 L101 175 Q73 157 68 120Z', gradient(c, 75, 67, 183, 159, ['#b8a67a', '#827e5e', '#58694f']), '#4d5c4366', 1);
       paintPath(c, 'M127 101 C106 64 77 94 78 123 Q80 151 112 164 L128 149 Q143 168 169 152 C194 119 163 79 141 94 Q130 102 127 111Z', '#ded0a6');
       paintPath(c, 'M87 119 Q93 100 111 108 M143 106 Q163 96 176 119', null, '#817c57', 2.1);
@@ -813,6 +504,7 @@ function forestCreature(kind) {
         const angle = n / 17 * Math.PI * 2, x = side ? 155 : 103, y = side ? 119 : 121;
         paintPath(c, `M${x + Math.cos(angle) * 18} ${y + Math.sin(angle) * 22} L${x + Math.cos(angle) * 24} ${y + Math.sin(angle) * 28}`, null, '#8f8b6270', .9);
       }
+      c.restore();
       for (let n = 0; n < 25; n++) {
         const x = 107 + n % 5 * 9, y = 182 + Math.floor(n / 5) * 16;
         paintPath(c, `M${x - 3} ${y} Q${x} ${y + 7} ${x + 4} ${y}`, null, n % 3 ? '#8f8860' : '#eee0b7', 1.4);
@@ -828,6 +520,7 @@ function forestCreature(kind) {
       paintPath(c, 'M151 239 Q153 256 166 274 L159 290 Q169 300 196 297 Q205 292 194 287 L188 269 L182 236Z', '#30473c');
       paintPath(c, 'M39 231 C29 190 53 158 94 160 C134 152 157 167 178 190 Q193 209 190 248 Q149 272 109 265 Q56 266 39 231Z', gradient(c, 47, 175, 187, 259, ['#a7b3a6', '#7a8c7b', '#405d4c']), '#40544366', 1);
       paintPath(c, 'M45 190 Q88 151 134 175 Q166 178 171 197 Q118 182 60 203Z', '#c2c9b166');
+      c.save(); c.translate(190, 219); c.rotate((frame - 1) * .045); c.translate(-190, -219);
       paintPath(c, 'M173 203 C159 188 167 166 181 170 Q193 171 194 186 Q205 181 216 187 C230 202 225 216 236 231 Q243 241 228 248 L208 254 Q186 247 173 225Z', '#d5d8c0', '#67806a60', .8);
       paintPath(c, 'M171 181 Q170 166 181 164 Q193 166 192 181Z', '#34493d');
       paintPath(c, 'M210 187 Q210 171 220 176 Q228 181 223 193Z', '#34493d');
@@ -840,6 +533,7 @@ function forestCreature(kind) {
       ellipse(c, 194, 205, 2.2, 2.7, '#15271f'); ellipse(c, 219, 208, 1.7, 2.5, '#15271f');
       ellipse(c, 195, 204, .65, .65, '#f2e4c8'); ellipse(c, 220, 207, .65, .65, '#f2e4c8');
       paintPath(c, 'M213 250 Q220 254 228 250', null, '#6e816b', 1.1);
+      c.restore();
       for (let n = 0; n < 62; n++) {
         const x = 48 + n * 13 % 124, y = 180 + n % 5 * 14 + Math.sin(n) * 7;
         paintPath(c, `M${x} ${y} Q${x + 3} ${y + 1} ${x + 7} ${y + 6}`, null, n % 3 ? '#d5d7bd70' : '#36554370', 1.1);
@@ -859,6 +553,7 @@ function forestCreature(kind) {
       paintPath(c, 'M57 176 Q43 170 44 185 Q45 199 59 202 Q69 192 62 182Z', '#e4ddba');
       paintPath(c, 'M157 183 C164 156 163 119 171 94 L189 92 Q196 131 191 158 L191 195 Q174 210 157 202Z', gradient(c, 163, 108, 192, 192, ['#cdb37a', '#a8905f', '#74805a']));
       paintPath(c, 'M176 107 Q177 148 176 178 L165 199 Q175 203 183 192 Q188 149 185 110Z', '#dbcca17a');
+      c.save(); c.translate(183, 100); c.rotate((frame - 1) * .06); c.translate(-183, -100);
       // A soft wedge-shaped head with a dark, sensitive nose and big listening ears.
       paintPath(c, 'M169 62 Q180 51 192 65 Q205 74 201 91 L213 107 Q211 119 195 117 L177 106 Q162 94 167 76Z', gradient(c, 166, 62, 205, 110, ['#d7bb83', '#ac9566', '#7a7e52']), '#6f79534d', .8);
       paintPath(c, 'M172 69 C152 63 144 45 148 29 Q171 32 180 57Z', '#a48f62');
@@ -870,6 +565,7 @@ function forestCreature(kind) {
       paintPath(c, 'M184 81 Q190 76 196 81', null, '#514d36', 1.4);
       ellipse(c, 191, 82, 3.1, 3.6, '#344936'); ellipse(c, 192, 81, 1, 1, '#f2e5c9');
       paintPath(c, 'M193 116 Q201 119 207 115', null, '#857a52', 1);
+      c.restore();
       for (let n = 0; n < 40; n++) {
         const x = 69 + n * 11 % 93, y = 178 + n % 4 * 9 + Math.sin(n) * 5;
         paintPath(c, `M${x} ${y} L${x + 5} ${y + 3}`, null, n % 3 ? '#dec69060' : '#737c5044', 1);
@@ -881,9 +577,6 @@ function forestCreature(kind) {
 
 export function createSpriteTextures() {
   const maps = {
-    hana: [0, 1, 2, 3].map(frame => hana(frame)),
-    goddess: hana(0, true),
-    john: john(),
     aldoCot: aldoCot(),
     fir: [0, 1, 2].map(fir),
     birch: [0, 1].map(birch),
@@ -892,7 +585,7 @@ export function createSpriteTextures() {
     mushrooms: flowers('mushrooms'),
     potatoLeaves: potatoLeaves(),
     potato: potato(),
-    cottage: cottage(),
+    creatureFrames: ['fox', 'owl', 'deer', 'badger'].map(kind => [0, 1, 2].map(frame => forestCreature(kind, frame))),
     fox: forestCreature('fox'),
     owl: forestCreature('owl'),
     deer: forestCreature('deer'),
@@ -901,9 +594,6 @@ export function createSpriteTextures() {
     grasses: grasses(),
     stone: stone(),
     stump: stump(),
-    worktop: worktop(),
-    stove: stove(),
-    supperTable: supperTable(),
     conversation: texture(96, 96, c => {
       c.fillStyle = '#fff2ce';
       c.beginPath(); c.roundRect(12, 12, 72, 56, 22); c.fill();
@@ -930,6 +620,13 @@ export function createSpriteTextures() {
       c.fillStyle = gradient; c.fillRect(-64, -64, 128, 128); c.restore();
     }),
   };
+  // Fox, deer, and badger muzzles point right. The owl is nearly frontal.
+  maps.creatureMirrors = maps.creatureFrames.map(frames => frames.map(frame => {
+    const mirrored = frame.clone();
+    mirrored.repeat.x = -1;
+    mirrored.offset.x = 1;
+    return mirrored;
+  }));
   maps.dispose = () => {
     const disposed = new Set();
     const disposeValue = value => {

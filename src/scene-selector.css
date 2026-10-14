@@ -1,0 +1,22 @@
+.intro-links { flex-wrap: wrap; row-gap: 8px; }
+.scene-selector { width: 700px; padding-top: 28px; }
+.scene-selector > p { margin-bottom: 22px; }
+.scene-group + .scene-group { margin-top: 22px; }
+.scene-group h3 { margin: 0 0 9px; color: var(--ink); font-size: 14px; font-weight: 600; }
+.scene-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.scene-choice { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; width: 100%; padding: 12px 14px; border: 1px solid #c8cfb6; border-radius: 7px; background: #edf0e1; color: var(--ink); text-align: left; }
+.scene-choice:hover { background: #e1e8d3; border-color: #98ab83; }
+.scene-choice strong { display: block; font-size: 13px; font-weight: 600; }
+.scene-choice span span { display: block; margin-top: 4px; font-size: 11px; line-height: 1.5; color: #526249; }
+.scene-choice svg { width: 17px; height: 17px; flex: 0 0 17px; }
+.scene-conversation { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.scene-conversation label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
+.scene-conversation select { display: block; width: 100%; min-height: 44px; padding: 8px; margin-bottom: 8px; border: 1px solid #98ab83; border-radius: 5px; background: #fafaf0; color: var(--ink); font: inherit; font-size: 12px; }
+.scene-conversation select:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.scene-conversation .scene-choice { font-size: 12px; }
+.finale-scene-select { position: absolute; top: 20px; right: 20px; z-index: 4; pointer-events: auto; box-shadow: 0 4px 20px #243d3230; }
+@media (max-width: 550px) {
+  .scene-options { grid-template-columns: minmax(0, 1fr); }
+  .scene-selector { padding-left: 20px; padding-right: 20px; }
+  .finale-scene-select { top: 12px; right: 12px; }
+}

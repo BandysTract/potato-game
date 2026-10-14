@@ -17,6 +17,10 @@ export function createGame(language = 'cs', random = Math.random) {
   return {
     language: language === 'en' ? 'en' : 'cs',
     phase: 'intro',
+    ending: null,
+    finaleTime: 0,
+    danceTime: 0,
+    dancePlaying: false,
     scene: 'outdoors',
     houseStep: 0,
     houseInteractionHeld: false,

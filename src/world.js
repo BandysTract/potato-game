@@ -5,6 +5,7 @@ import { createPaintedCharacters } from './characters.js';
 import { getNearby } from './game.js';
 import { barkTexture, treeTrunkGeometry, tearTexture, tearJarTexture, breezeAt } from './forest-art.js';
 import { TUNES, songPhrase } from './songs.js';
+import { createFamilyFinale } from './finale-scene.js';
 
 const phrases = Object.fromEntries(Object.keys(TUNES).map(id => [id, songPhrase(id)]));
 
@@ -604,12 +605,12 @@ export function createWorld(container) {
   const furniture = Object.fromEntries(HOUSE_OBSTACLES.map(item => [item.id, item]));
   const john = HOUSE_TARGETS[0], cot = furniture.cot;
   const johnFigure = sprite(painted.actions[9], john.x, john.z, 3.3, 3.3, .07);
-  shadow(john.x, john.z, 1.7, 1, .6);
-  sprite(maps.aldoCot, cot.x, cot.z, cot.radius * 2.4, cot.radius * 1.89, .07);
-  shadow(cot.x, cot.z, cot.radius * 2.35, cot.radius * 1.72, .45);
+  const johnShadow = shadow(john.x, john.z, 1.7, 1, .6);
+  const aldoCot = sprite(maps.aldoCot, cot.x, cot.z, cot.radius * 2.4, cot.radius * 1.89, .07);
+  const cotShadow = shadow(cot.x, cot.z, cot.radius * 2.35, cot.radius * 1.72, .45);
   const familyIndicator = sprite(maps.conversation, john.x, john.z, .65, .65, 3.05);
   const percy = sprite(painted.cat[0], HOUSE_CAT.x, HOUSE_CAT.z, 1.05, 1.05, .03);
-  shadow(HOUSE_CAT.x, HOUSE_CAT.z, 1, .65, .5);
+  const percyShadow = shadow(HOUSE_CAT.x, HOUSE_CAT.z, 1, .65, .5);
   const catRug = mesh(new THREE.CylinderGeometry(.65, .65, .035, 32), material('#aa7354'), HOUSE_CAT.x, .02, HOUSE_CAT.z);
   catRug.scale.z = .7;
   const prep = furniture.worktop, stove = furniture.stove, table = furniture.table;
@@ -690,6 +691,7 @@ export function createWorld(container) {
   radiance.center.set(.5, .5);
   const crownHalo = sprite(maps.glow, START.x, START.z, 3.2, 3.2, 2.7, { color: '#fff4c0', blending: THREE.AdditiveBlending, opacity: 0 });
   crownHalo.center.set(.5, .5);
+  const familyFinale = createFamilyFinale(scene, painted, maps.shadow);
   activeGroup = outdoors;
   // Soft motes use one draw call, even on small screens.
   const moteCount = 72, motePositions = new Float32Array(moteCount * 3), moteOrigins = [];
@@ -722,7 +724,7 @@ export function createWorld(container) {
   const projectedPlayer = new THREE.Vector3(), projectedBase = new THREE.Vector3(), projectedTop = new THREE.Vector3();
   const tearDestination = new THREE.Vector3();
   let width = 1, height = 1, cameraDistance = 32, elapsedWalk = 0;
-  let previousScene = 'outdoors', previousPhase = 'intro', transformationTime = 0;
+  let previousScene = 'outdoors', previousPhase = 'intro', previousDance = false, transformationTime = 0;
   let previousGame = null;
 
   function resize() {
@@ -745,6 +747,8 @@ export function createWorld(container) {
     const intro = game.phase === 'intro';
     const indoors = game.scene === 'house';
     const won = game.phase === 'won' && indoors;
+    const dancing = won && game.ending === 'dance';
+    const goddess = won && game.ending === 'goddess';
     const mobile = width <= 700;
     outdoors.visible = !indoors; house.visible = indoors;
     scene.background.set(indoors ? '#c3ad8b' : '#b7c9b0');
@@ -752,10 +756,12 @@ export function createWorld(container) {
     desiredFocus.set(intro ? (mobile ? 0 : -2) : player.x,
       won ? 1.5 : .8,
       intro ? 15 : player.z - .4);
-    const changedScene = previousScene !== (indoors ? 'house' : 'outdoors') || (intro && previousPhase !== 'intro');
+    if (dancing) desiredFocus.set(0, mobile ? 2.4 : 3.4, 0);
+    const changedScene = previousScene !== (indoors ? 'house' : 'outdoors') || (intro && previousPhase !== 'intro') || dancing !== previousDance;
     const factor = reducedMotion.matches || changedScene ? 1 : 1 - Math.exp(-Math.min(dt, .1) * (intro ? 2 : 5));
     focus.lerp(desiredFocus, factor);
-    const targetDistance = intro ? (mobile ? 36 : 38) : won ? 27 : mobile ? 28 : 32;
+    const danceDistance = Math.max(22, 9.8 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect));
+    const targetDistance = dancing ? danceDistance : intro ? (mobile ? 36 : 38) : won ? 27 : mobile ? 28 : 32;
     cameraDistance = THREE.MathUtils.lerp(cameraDistance, targetDistance, factor);
     cameraOffset.set(cameraDistance * Math.cos(Math.PI / 6) * Math.SQRT1_2, cameraDistance * .5,
       cameraDistance * Math.cos(Math.PI / 6) * Math.SQRT1_2);
@@ -765,8 +771,9 @@ export function createWorld(container) {
     if (player.moving && !reducedMotion.matches) elapsedWalk += dt;
     const walkPhase = elapsedWalk * 1.5;
     const frame = player.moving && !reducedMotion.matches ? Math.floor(walkPhase * painted.walkFrameCount) % painted.walkFrameCount : 0;
-    transformationTime = won ? Math.min(3.2, transformationTime + Math.max(0, dt)) : 0;
-    const transformation = won ? reducedMotion.matches ? 1 : transformationTime / 3.2 : 0;
+    if (resetPerformance) transformationTime = 0;
+    transformationTime = goddess ? Math.min(3.2, transformationTime + Math.max(0, dt)) : 0;
+    const transformation = goddess ? reducedMotion.matches ? 1 : transformationTime / 3.2 : 0;
     const lift = THREE.MathUtils.smoothstep(transformation, .2, .8) * .64;
     const transformed = transformation >= .65;
     const direction = player.direction || 0;
@@ -814,7 +821,9 @@ export function createWorld(container) {
     percy.scale.y = 1.05 * (1 + breath * 1.4);
     hanaShadow.material.opacity = .8 - transformation * .32;
     hanaShadow.scale.set(1 - transformation * .2, 1 - transformation * .2, 1);
-    radiance.visible = crownHalo.visible = won;
+    radiance.visible = crownHalo.visible = goddess;
+    hana.visible = hanaShadow.visible = johnFigure.visible = johnShadow.visible = aldoCot.visible = cotShadow.visible = percy.visible = percyShadow.visible = !dancing;
+    familyFinale.update(game, camera, width, height, reducedMotion.matches);
     // Paint the light before Hana so her face and embroidery retain their colors.
     radiance.renderOrder = crownHalo.renderOrder = won ? 1 : 0;
     hana.renderOrder = won ? 2 : 0;
@@ -992,14 +1001,16 @@ export function createWorld(container) {
     }
     previousScene = indoors ? 'house' : 'outdoors';
     previousPhase = game.phase;
+    previousDance = dancing;
     renderer.render(scene, camera);
   }
 
   function dispose() {
+    familyFinale.dispose();
     firBark.dispose(); birchBark.dispose(); tearMap.dispose();
     jarMaps.flat().forEach(map => map.dispose());
     geometries.forEach(geometry => geometry.dispose()); materials.forEach(mat => mat.dispose());
     maps.dispose(); painted.dispose(); floorMap.dispose(); woodMap.dispose(); plasterMap.dispose(); clothMap.dispose(); pathMap.dispose(); windowMap.dispose(); renderer.dispose(); renderer.domElement.remove();
   }
-  return { update, resize, dispose, renderer, scene, camera, ready: painted.ready };
+  return { update, resize, dispose, renderer, scene, camera, ready: painted.ready, projectorBounds: familyFinale.projectorBounds };
 }

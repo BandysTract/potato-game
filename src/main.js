@@ -5,10 +5,13 @@ import { createUI } from './ui.js';
 import { createAudio } from './audio.js';
 import { regionAt } from './data.js';
 import { t } from './i18n.js';
+import { createSequenceGame } from './sequences.js';
+import { createFinale } from './finale.js';
 
 let game = createGame();
 let overlay = 'intro';
 let returnOverlay = null;
+let adminReturn = null;
 let sound = false;
 let soundPreference = null;
 let soundError = '';
@@ -31,13 +34,15 @@ const audio = createAudio((enabled) => {
   }
 });
 const ui = createUI(document.querySelector('#ui'), onAction);
+const finale = createFinale(document.querySelector('#app'), onAction, playing => { game.dancePlaying = playing; });
 let world;
 let stopped = false;
 let frame;
 let audioFocused = document.hasFocus();
 
 function syncAudioPause() {
-  audio.setPaused(stopped || !audioFocused || document.hidden || Boolean(overlay) && !['intro', 'win', 'reveal', 'dialogue'].includes(overlay));
+  audio.setPaused(stopped || !audioFocused || document.hidden || game.phase === 'won' && game.ending === 'dance' || Boolean(overlay) && !['intro', 'win', 'reveal', 'dialogue'].includes(overlay));
+  if (overlay !== 'dance' || !audioFocused || document.hidden) finale.pause();
 }
 
 function clearInput(preserveActivity = false) {
@@ -92,7 +97,14 @@ function syncLanguage() {
 }
 
 function closeOverlay() {
-  if (overlay === 'intro' || overlay === 'win' || overlay === 'reveal') return;
+  if (overlay === 'admin') {
+    const previous = adminReturn;
+    adminReturn = null;
+    returnOverlay = previous?.returnOverlay || null;
+    showOverlay(previous?.overlay || null, true);
+    return;
+  }
+  if (overlay === 'intro' || overlay === 'win' || overlay === 'reveal' || overlay === 'dance' || overlay === 'endingChoice') return;
   if (overlay === 'dialogue') { onAction('dialogueFinish'); return; }
   const next = returnOverlay;
   returnOverlay = null;
@@ -101,17 +113,39 @@ function closeOverlay() {
 
 function onAction(action, value) {
   if (stopped) return;
-  if (action === 'start' && game.phase === 'intro') {
+  if (action === 'admin') {
+    if (overlay === 'admin') closeOverlay();
+    else {
+      adminReturn = { overlay, returnOverlay };
+      showOverlay('admin', true);
+    }
+  } else if (action === 'jump' && overlay === 'admin') {
+    const next = createSequenceGame(value, game.language);
+    if (!next) return;
+    clearInput();
+    game = next;
+    dialogueChoice = null;
+    returnOverlay = null;
+    adminReturn = null;
+    endingTime = 0;
+    syncLanguage();
+    if (game.phase === 'won') beginEnding();
+    else showOverlay(game.conversation ? 'dialogue' : game.phase === 'intro' ? 'intro' : null);
+  } else if (action === 'start' && game.phase === 'intro') {
     startGame(game);
     returnOverlay = null;
     showOverlay(null);
     if (soundPreference === null) setSound(true);
-  } else if (action === 'restart' && game.phase === 'won' && overlay === 'win') {
+  } else if (action === 'ending' && overlay === 'endingChoice' && ['dance', 'goddess'].includes(value)) {
+    game.ending = value;
+    beginEnding();
+  } else if (action === 'restart' && game.phase === 'won' && ['win', 'dance'].includes(overlay)) {
     game = createGame(game.language);
     startGame(game);
     endingTime = 0;
     syncLanguage();
     returnOverlay = null;
+    dialogueChoice = null;
     showOverlay(null);
   } else if (action === 'pause' && game.phase === 'playing' && !overlay) {
     returnOverlay = null;
@@ -159,7 +193,13 @@ function onIntroInteraction(event) {
   setSound(true);
 }
 function onKeyDown(event) {
-  if (event.ctrlKey || event.metaKey || event.altKey || event.target.matches('input, textarea, select')) return;
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.code === 'F2') {
+    event.preventDefault();
+    if (!event.repeat) onAction('admin');
+    return;
+  }
+  if (event.target.matches('input, textarea, select') && !(overlay === 'admin' && event.code === 'Escape')) return;
   if (event.code === 'Escape') {
     event.preventDefault();
     if (event.repeat) return;
@@ -186,9 +226,12 @@ function onKeyUp(event) {
   }
 }
 function onBlur() {
-  clearInput();
+  // Focusing the embedded player's frame doesn't mean leaving the game.
+  if (document.hasFocus() && finale.containsFocus?.()) return;
+  clearInput(overlay === 'admin');
   audioFocused = false;
   audio.setPaused(true);
+  finale.pause();
   if (game.phase === 'playing' && (!overlay || overlay === 'songs')) { returnOverlay = null; showOverlay('pause'); }
 }
 function onFocus() { audioFocused = true; syncAudioPause(); }
@@ -209,6 +252,7 @@ function graphicsError(artwork = false) {
   clearInput();
   audio.setPaused(true);
   audio.dispose();
+  finale.dispose();
   if (frame) cancelAnimationFrame(frame);
   const panel = document.createElement('section');
   panel.className = 'graphics-error';
@@ -248,6 +292,21 @@ try {
 }
 
 let previousTime;
+function beginEnding() {
+  endingTime = 0;
+  if (!game.ending) {
+    showOverlay('endingChoice');
+  } else if (game.ending === 'dance') {
+    game.finaleTime = reducedMotion?.matches ? 4 : 0;
+    game.danceTime = 0;
+    game.dancePlaying = false;
+    showOverlay('dance');
+  } else {
+    audio.finish();
+    showOverlay(reducedMotion?.matches ? 'win' : 'reveal');
+  }
+}
+
 function animate(timestamp) {
   if (stopped) return;
   const elapsed = previousTime === undefined ? 0 : Math.max(0, (timestamp - previousTime) / 1000);
@@ -277,16 +336,19 @@ function animate(timestamp) {
       showOverlay('dialogue');
     }
     if (game.phase === 'won') {
-      audio.finish();
-      endingTime = 0;
-      showOverlay(reducedMotion?.matches ? 'win' : 'reveal');
+      beginEnding();
     }
   } else if (overlay === 'dialogue' || overlay === 'intro') audio.tick(game, dt);
   else if (overlay === 'reveal') {
     endingTime += dt;
     if (reducedMotion?.matches || endingTime >= 3.6) showOverlay('win');
+  } else if (overlay === 'dance' && audioFocused && !document.hidden) {
+    game.finaleTime = reducedMotion?.matches ? Math.max(4, game.finaleTime) : game.finaleTime + dt;
+    const playbackTime = finale.getPlaybackTime();
+    if (playbackTime !== null) game.danceTime = playbackTime;
   }
-  world.update(game, dt, timestamp / 1000);
+  world.update(game, overlay === 'admin' ? 0 : dt, timestamp / 1000);
+  finale.update(game, { overlay, sound, focused: audioFocused && !document.hidden }, world.projectorBounds?.());
   drawUI();
   frame = requestAnimationFrame(animate);
 }
@@ -313,6 +375,7 @@ if (import.meta.hot) {
     document.removeEventListener('visibilitychange', onVisibility);
     world?.dispose();
     ui.dispose();
+    finale.dispose();
     audio.dispose();
   });
 }

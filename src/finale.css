@@ -1,0 +1,25 @@
+.family-finale { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.finale-heading { position: absolute; top: max(18px, env(safe-area-inset-top)); left: 20px; right: 20px; text-align: center; color: #263e36; text-shadow: 0 1px 8px #faf2da; }
+.finale-heading h1 { margin: 0; font: 500 clamp(24px, 3vw, 38px)/1.15 var(--serif); }
+.finale-heading p { margin: 7px 0 0; font-size: 14px; }
+.projector-video { position: absolute; pointer-events: auto; background: #151917; overflow: hidden; }
+.projector-video [data-video-host], .projector-video iframe { width: 100%; height: 100%; border: 0; display: block; }
+.finale-controls { position: absolute; bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 28px); border-radius: 12px; padding: 12px 18px; text-align: center; pointer-events: auto; }
+.finale-controls p { margin: 0 0 10px; font-size: 13px; max-width: 650px; }
+.finale-buttons { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px; }
+.finale-buttons .button { min-height: 44px; padding: 9px 15px; }
+.finale-controls a { display: inline-block; margin: 8px 10px 0 0; color: #526359; font-size: 11px; }
+.finale-source { color: #526359; font-size: 11px; }
+@media (max-height: 760px) {
+  .finale-heading { top: 12px; }
+  .finale-heading h1 { font-size: 26px; }
+  .finale-heading p { margin-top: 4px; font-size: 12px; }
+}
+@media (max-width: 700px) {
+  .finale-heading { top: max(14px, env(safe-area-inset-top)); }
+  .finale-heading p { font-size: 12px; }
+  .finale-controls { width: calc(100% - 24px); max-width: none; padding: 10px 12px; bottom: max(10px, env(safe-area-inset-bottom)); }
+  .finale-controls p { font-size: 12px; margin-bottom: 8px; }
+  .finale-buttons { gap: 5px; }
+  .finale-buttons .button, .finale-buttons .icon-button { font-size: 11px; padding: 7px 10px; }
+}

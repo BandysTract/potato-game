@@ -2,7 +2,7 @@
 
 **What’s cooking in Pec?**
 
-A gentle, illustrated browser adventure set in an imagined forest above Pec pod Sněžkou. Play as Hana, gather 6 potatoes, learn familiar Czech songs from 3 fairies, and restore gardens along a winding forest loop. Talk with a fox, an owl, a deer, and a badger through short philosophical conversations. Come home to Hana’s husband John, their infant son Aldo, and Percy the seal point tabby, then prepare, cook, and serve dinner. After supper, Hana glows, rises gently, and becomes a pagan Slavic goddess. The Czech/English switch translates the whole game and preserves your progress.
+A gentle, illustrated browser adventure set in an imagined forest above Pec pod Sněžkou. Play as Hana, gather 6 potatoes, learn familiar Czech songs from 3 fairies, and restore gardens along a winding forest loop. Talk with a fox, an owl, a deer, and a badger through short philosophical conversations. Come home to Hana’s husband John, their infant son Aldo, and Percy the seal point tabby, then prepare, cook, and serve dinner. After supper, choose the family dance or Hana’s transformation into a Slavic goddess. In the dance ending, John pulls down a projector screen for Karel Gott’s “Mám styl Čendy,” and Hana, John, Aldo, and Percy dance together. Both endings are also available in Scene select. The Czech/English switch translates the whole game and preserves your progress.
 
 ## Play locally
 
@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-Open the local address printed by Vite. The game runs entirely in the browser. Once installed, it doesn't need an account, a connection to any game service, or outside asset service. Reloading begins a fresh adventure.
+Open the local address printed by Vite. The game runs entirely in the browser. The forest, household chapter, and original goddess ending work offline once installed. The dance ending loads an online YouTube video and needs an internet connection. No account is required. Reloading begins a fresh adventure.
 
 | Control | Action |
 | --- | --- |
@@ -25,9 +25,20 @@ Open the local address printed by Vite. The game runs entirely in the browser. O
 | E inside | Greet John, visit Aldo, prepare the potatoes, cook, and serve dinner |
 | M | Open or close the map |
 | H | How to play |
+| F2 | Open or close Scene select |
 | Esc | Stop an unfinished song, pause, or close the current panel |
 
-The game starts in Czech. Choose “English” on the title screen or during play to switch languages. Touch screens have directional buttons and an action button. Use the title screen’s sound button to hear the opening theme. Music can also begin with your first click or keypress in the introduction. The sound button can mute it, and starting or replaying keeps your choice. The forest map shows available potatoes, fairies, restoration sites, and Hana’s position. A wrong song offers a clue and consumes nothing. Movement, pause, or losing focus stops an unfinished performance. Learned songs are reusable, and restored gardens stay restored. Two potatoes appear only after their garden is restored. The final rain song needs all 3 tears, and the tears remain in the inventory as keepsakes. Inside, it becomes a room plan with the five dinner steps. Release the action button between household tasks. Forest conversations can be revisited and don’t have right or wrong answers. There’s no combat, time limit, or failure penalty. The reduced-motion setting keeps the scenery still and shows a glowing goddess without the animated rise. Changing the setting during play takes effect immediately.
+The game starts in Czech. Choose “English” on the title screen or during play to switch languages. Touch screens have directional buttons and an action button. Use the title screen’s sound button to hear the opening theme. Music can also begin with your first click or keypress in the introduction. The sound button can mute it, and starting or replaying keeps your choice. The forest map shows available potatoes, fairies, restoration sites, and Hana’s position. A wrong song offers a clue and consumes nothing. Movement, pause, or losing focus stops an unfinished performance. Learned songs are reusable, and restored gardens stay restored. Two potatoes appear only after their garden is restored. The final rain song needs all 3 tears, and the tears remain in the inventory as keepsakes. Inside, it becomes a room plan with the five dinner steps. Release the action button between household tasks. Forest conversations can be revisited and don’t have right or wrong answers. There’s no combat, time limit, or failure penalty. The reduced-motion setting keeps the scenery still, lowers the projector immediately, and holds the family in still poses. It also shows the original goddess without the animated rise. Changing the setting during play takes effect immediately.
+
+## Study a scene
+
+Choose “Scene select” on the title screen, pause menu, or either ending, or press F2. Choose a fairy, a garden, an animal conversation, a household task, or an ending. The game prepares the songs and supplies needed for the chosen scene. Each animal has a menu for its three questions. Choosing a scene replaces current progress. Closing the panel resumes the previous scene without changing progress. Language and sound choices carry across scene changes.
+
+## Family dance
+
+John lowers the screen before the [2012 performance of “Mám styl Čendy”](https://www.youtube.com/watch?v=usk0WKKoHOk) starts. Hana and John sway and step, Aldo waves and kicks from his cot, and Percy prances. The family’s dance follows actual video playback and pauses with it. Game music stops during the finale. Sound, language, replay, scene selection, and a new walk remain available.
+
+The video uses YouTube’s embedded player and isn’t downloaded or included in the repository. The player loads only during the dance ending. Browser autoplay rules may require pressing “Play video.” If YouTube is unavailable or embedding is blocked, the game offers a retry and a link to the performance. Leaving the ending destroys its player. Reduced motion affects the game’s animation, not the recorded performance.
 
 ## Build and checks
 

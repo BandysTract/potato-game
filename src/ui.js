@@ -1,6 +1,8 @@
 import { BOUNDS, BROOK, HOME, HOUSE_BOUNDS, HOUSE_TARGETS, POTATOES, FAIRIES, CREATURES, LANDMARKS, TRAILS, SONGS, SONG_SITES } from './data.js';
 import { DIALOGUES, HOUSE_ACTIVITIES } from './dialogues.js';
 import { t, placeName } from './i18n.js';
+import { SEQUENCES } from './sequences.js';
+import './scene-selector.css';
 
 const icons = {
   potato: '<path d="M7 4c3-3 10-2 12 3s-2 12-7 13S2 17 3 12s1-6 4-8Z"/><path d="m8 9 .1.1m7 0 .1.1m-4 6 .1.1"/>',
@@ -48,12 +50,21 @@ function houseMapMarkup(language) {
   return `<svg class="trail-map house-map" viewBox="-11 -9 22 18" role="img" aria-label="${escape(t(language, 'Plan of the cottage. Numbered stops mark John, Aldo, the kitchen counter, the stove, and the dinner table. The green dot marks Hana.'))}"><rect class="house-map-room" x="-10" y="-8" width="20" height="16" rx=".5"/><path class="house-map-door" d="M-1 8h2M-1 8V6h2"/>${stops}<g data-house-player class="map-player"><title>${escape(t(language, 'Hana, your current location'))}</title><circle class="map-player-halo" r=".85"/><circle class="map-player-dot" r=".35"/></g></svg>`;
 }
 
+function sceneSelectorMarkup(language) {
+  const l = (key, values) => escape(t(language, key, values));
+  const groups = [...new Set(SEQUENCES.map((sequence) => sequence.group))];
+  return groups.map((group, index) => `<section class="scene-group" aria-labelledby="scene-group-${index}"><h3 id="scene-group-${index}">${l(group)}</h3><div class="scene-options">${SEQUENCES.filter((sequence) => sequence.group === group).map((sequence) => sequence.variants
+    ? `<div class="scene-conversation"><label for="scene-${sequence.id}">${l(sequence.label)}</label><select id="scene-${sequence.id}" data-scene-variant="${sequence.id}" aria-label="${l('Choose a conversation with {name}', { name: t(language, sequence.label) })}">${sequence.variants.map((variant) => `<option value="${variant.id}">${escape(variant.label[language])}</option>`).join('')}</select><button class="scene-choice" data-sequence="${sequence.id}" type="button" aria-label="${l('Start a conversation with {name}', { name: t(language, sequence.label) })}">${l('Start conversation')}${icon('arrow')}</button></div>`
+    : `<button class="scene-choice" data-sequence="${sequence.id}" type="button"><span><strong>${l(sequence.label)}</strong>${sequence.detail ? `<span>${l(sequence.detail)}</span>` : ''}</span>${icon('arrow')}</button>`).join('')}</div></section>`).join('');
+}
+
 function createLocalizedUI(root, onAction, language, heldInputs) {
   const l = (key, values) => escape(t(language, key, values));
   const titleParts = language === 'cs' ? ['Co se', 'v Peci', 'peče?'] : ['What’s', 'cooking', 'in Pec?'];
   const languageButton = `<button class="language-button" data-action="language" type="button" aria-label="${l(language === 'cs' ? 'Switch to English' : 'Switch to Czech')}"><span lang="cs" class="${language === 'cs' ? 'current-language' : ''}">Česky</span> / <span lang="en" class="${language === 'en' ? 'current-language' : ''}">English</span></button>`;
   root.lang = language;
   root.innerHTML = `
+    <button class="finale-scene-select button secondary" data-action="admin" type="button" hidden>${l('Scene select')}</button>
     <div class="play-surface" hidden>
       <header class="masthead">
         <div class="wordmark"><span class="wordmark-title">${l('What’s cooking in Pec?')}</span><span class="wordmark-place">Pec pod Sněžkou · Krkonoše</span></div>
@@ -86,22 +97,25 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
         <div class="intro-mission"><div>${icon('potato')}<span><strong>${l('6 potatoes')}</strong><span>${l('For a warm supper')}</span></span></div><div>${icon('tear')}<span><strong>${l('3 fairy tears of joy')}</strong><span>${l('For the cottage garden')}</span></span></div></div>
         <p class="intro-return">${l('Bring every gift home, then make dinner with Hana’s husband John and spend a moment with their infant son Aldo. Forest conversations are optional.')}</p>
         <button class="button primary begin-button" data-action="start" data-initial-focus type="button">${l('Let’s go')} ${icon('arrow')}</button>
-        <div class="intro-links"><button class="text-button" data-action="help" type="button">${l('How to play')}</button><span aria-hidden="true">·</span><button class="text-button" data-action="map" type="button">${l('Look at the map')}</button></div>
+        <div class="intro-links"><button class="text-button" data-action="help" type="button">${l('How to play')}</button><span aria-hidden="true">·</span><button class="text-button" data-action="map" type="button">${l('Look at the map')}</button><span aria-hidden="true">·</span><button class="text-button" data-action="admin" type="button">${l('Scene select')}</button></div>
         <div class="intro-sound"><button class="icon-button sound-button" data-action="sound" type="button" aria-label="${l('Turn sound on')}" aria-pressed="false">${icon('mute')}<span class="nav-label">${l('Sound off')}</span></button><span>${l('A tune for the mountains')}</span></div>
         <p class="intro-sound-status" role="status" aria-live="polite" aria-atomic="true" hidden></p>
         <div class="intro-controls"><span><kbd>W A S D</kbd> ${l('/ arrows to walk')}</span><span><kbd>E</kbd> ${l('interact / sing')} </span><span><kbd>M</kbd> ${l('map')} <span class="control-dot">·</span> <kbd>Esc</kbd> ${l('pause')}</span></div>
       </div>
       <div class="scene-caption"><span class="caption-rule"></span><span>${l('A quiet corner of the mountains')}</span></div>
     </section>
-    <section class="dialog-scrim overlay" data-overlay="pause" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden><div class="dialog parchment pause-dialog"><div class="dialog-language">${languageButton}</div>${sprig}<span class="eyebrow">${l('A moment on the trail')}</span><h2 id="pause-title">${l('Rest a while.')}</h2><p>${l('Hana will be here when you’re ready.')}</p><button class="button primary" data-action="resume" data-initial-focus type="button">${l('Keep walking')} ${icon('arrow')}</button><button class="button secondary" data-action="help" type="button">${l('How to play')}</button></div></section>
+    <section class="dialog-scrim overlay" data-overlay="pause" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden><div class="dialog parchment pause-dialog"><div class="dialog-language">${languageButton}</div>${sprig}<span class="eyebrow">${l('A moment on the trail')}</span><h2 id="pause-title">${l('Rest a while.')}</h2><p>${l('Hana will be here when you’re ready.')}</p><button class="button primary" data-action="resume" data-initial-focus type="button">${l('Keep walking')} ${icon('arrow')}</button><button class="button secondary" data-action="help" type="button">${l('How to play')}</button><button class="button secondary" data-action="admin" type="button">${l('Scene select')}</button></div></section>
     <section class="dialog-scrim overlay" data-overlay="help" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden><div class="dialog parchment help-dialog"><div class="dialog-language">${languageButton}</div><button class="dialog-close icon-button" data-action="close" data-initial-focus type="button" aria-label="${l('Close help')}">${icon('close')}</button><span class="eyebrow">${l('Find your own pace')}</span><h2 id="help-title">${l('How to play')}</h2><p>${l('Learn songs from Běla, Jitřenka, and Rusalka. Use the songs to restore the woodland garden, upper meadow, and cottage garden. Gather 6 potatoes and 3 fairy tears, then come home. Say hello to John and baby Aldo, and make supper. The guide shows your next stop.')}</p><p class="conversation-help">${l('Stop to talk with the fox, owl, deer, and badger. Return for another question after a conversation.')}</p><dl class="help-controls"><div><dt><kbd>W A S D</kbd> ${l('/ arrow keys')} </dt><dd>${l('Walk through the forest and the cottage.')}</dd></div><div><dt><kbd>E</kbd></dt><dd>${l('Press E to gather, talk, or enter the cottage. Press E near a fairy to learn her song. At a garden or meadow, press E to choose a song. Move or press Esc to stop singing. At home, release E between actions.')}</dd></div><div><dt><kbd>M</kbd></dt><dd>${l('Open the forest map or the cottage plan. Walking keys follow the screen.')}</dd></div><div><dt><kbd>Esc</kbd></dt><dd>${l('Pause or close a guide.')}</dd></div></dl><p class="touch-help">${l('On a touch screen, hold a direction to walk. Tap the round action button to gather, talk, learn a song, or choose a song at a garden or meadow. Tap a learned song to sing it. Move to stop singing.')}</p><p class="small-note">${l('Refreshing the page starts a new walk.')}</p><button class="button secondary" data-action="close" type="button">${l('Back to the walk')}</button></div></section>
     <section class="dialog-scrim overlay" data-overlay="map" role="dialog" aria-modal="true" aria-labelledby="map-title" hidden><div class="dialog parchment map-dialog"><div class="dialog-language">${languageButton}</div><button class="dialog-close icon-button" data-action="close" data-initial-focus type="button" aria-label="${l('Close map')}">${icon('close')}</button><span class="eyebrow">${l('Find your way')}</span><h2 id="map-title">${l('Hana’s forest map')}</h2><p class="map-description">${l('Follow the blue trail, or find your own way. North is at the top. Walking keys follow the screen.')}</p><div data-map-outdoors>${mapMarkup(language)}</div><div data-map-house hidden>${houseMapMarkup(language)}</div><div class="map-legend" data-outdoor-legend aria-label="${l('Map legend')}"><span><i class="legend-player"></i>${l('Hana')}</span><span><i class="legend-potato"></i>${l('Potato')}</span><span><i class="legend-fairy">✦</i>${l('Fairy')}</span><span>${icon('home')}${l('Cottage')}</span><span><i class="legend-creature"></i>${l('Conversation')}</span><span><i class="legend-site"></i>${l('Needs a song')}</span><span><i class="legend-site restored"></i>${l('Restored')}</span></div><p class="map-objective" data-map-objective>${l('Gather 6 potatoes and 3 fairy tears, then return to the cottage.')}</p></div></section>
     <section class="dialog-scrim overlay" data-overlay="songs" role="dialog" aria-modal="true" aria-labelledby="songs-title" hidden><div class="dialog parchment songs-dialog"><div class="dialog-language">${languageButton}</div><button class="dialog-close icon-button" data-action="close" type="button" aria-label="${l('Close songs')}">${icon('close')}</button><span class="eyebrow">${l('Learned songs')}</span><h2 id="songs-title" data-initial-focus tabindex="-1">${l('Choose a song')}</h2><p data-song-site></p><div class="song-choices">${SONGS.map((song) => `<button class="song-choice" data-song-choice="${song.id}" type="button" disabled>${icon(songSymbols[song.id])}<span><strong>${l(song.name)}</strong><span>${l(song.effect)}</span><span class="song-lock-hint" data-song-hint="${song.id}">${l('Learn from {name}', { name: song.teacher })}</span></span>${icon('arrow')}</button>`).join('')}</div><p class="small-note" data-song-stop></p></div></section>
     <section class="dialog-scrim overlay" data-overlay="dialogue" role="dialog" aria-modal="true" aria-labelledby="dialogue-title" hidden><div class="dialog parchment dialogue-dialog"><div class="dialog-language">${languageButton}</div><button class="dialog-close icon-button" data-action="dialogueFinish" type="button" aria-label="${l('Leave conversation')}">${icon('close')}</button><span class="eyebrow" data-dialogue-kicker>${l('A voice in the forest')}</span><h2 id="dialogue-title" data-initial-focus tabindex="-1">${l('A forest conversation')}</h2><div class="character-portrait" data-character-portrait hidden aria-hidden="true"></div><p class="dialogue-theme" data-dialogue-theme></p><div class="conversation-line opening-line"><span class="speaker" data-dialogue-speaker></span><p data-dialogue-opening></p></div><div class="dialogue-choices"><p class="choice-invitation">${l('Hana replies')}</p><button class="dialogue-choice" data-dialogue-choice="0" type="button"><span data-choice="0"></span>${icon('arrow')}</button><button class="dialogue-choice" data-dialogue-choice="1" type="button"><span data-choice="1"></span>${icon('arrow')}</button></div><div class="dialogue-result" tabindex="-1" hidden><div class="conversation-line hana-line"><span class="speaker">${l('Hana')}</span><p data-selected></p></div><div class="conversation-line"><span class="speaker" data-reply-speaker></span><p data-reply></p></div><div class="conversation-line reflection-line"><span class="speaker">${l('Hana')}</span><p data-reflection></p></div><button class="button primary" data-action="dialogueFinish" type="button"><span data-dialogue-continue>${l('Continue walking')}</span> ${icon('arrow')}</button></div></div></section>
-    <section class="ending-screen overlay" data-overlay="win" role="dialog" aria-modal="true" aria-labelledby="win-title" hidden><div class="ending-panel parchment"><div class="dialog-language">${languageButton}</div><div class="ending-emblem" aria-hidden="true">${icon('home')}${sprig}</div><span class="eyebrow">${l('A gift from the mountains')}</span><h2 id="win-title">${l('Supper, then a little wonder.')}</h2><p class="ending-lead">${l('The mountains have one more gift for Hana.')}</p><p>${l('The garden’s watered. Hana and her husband John eat supper as baby Aldo sleeps. Hana glows and rises, a Slavic goddess of home and harvest.')}</p><div class="ending-gifts"><span>${icon('potato')}${l('6 potatoes')}</span><span>${icon('tear')}${l('3 fairy tears')}</span></div><button class="button primary" data-action="restart" data-initial-focus type="button">${l('Walk again')} ${icon('arrow')}</button></div></section>`;
+    <section class="dialog-scrim overlay" data-overlay="admin" role="dialog" aria-modal="true" aria-labelledby="admin-title" aria-describedby="admin-description" hidden><div class="dialog parchment scene-selector"><div class="dialog-language">${languageButton}</div><button class="dialog-close icon-button" data-action="close" data-initial-focus type="button" aria-label="${l('Close scene select')}">${icon('close')}</button><span class="eyebrow">${l('Study a scene')}</span><h2 id="admin-title">${l('Scene select')}</h2><p id="admin-description">${l('Choose a scene to start with the songs and supplies it needs. Choosing replaces your current progress. Close to return without changing anything.')}</p>${sceneSelectorMarkup(language)}</div></section>
+    <section class="dialog-scrim overlay" data-overlay="endingChoice" role="dialog" aria-modal="true" aria-labelledby="ending-choice-title" hidden><div class="dialog parchment"><div class="dialog-language">${languageButton}</div><span class="eyebrow">${l('After supper')}</span><h2 id="ending-choice-title" data-initial-focus tabindex="-1">${l('How should the evening end?')}</h2><div class="song-choices"><button class="song-choice" data-ending="dance" type="button">${icon('home')}<span><strong>${l('Family dance')}</strong><span>${l('John plays Karel Gott, and everyone joins in.')}</span></span>${icon('arrow')}</button><button class="song-choice" data-ending="goddess" type="button">${icon('tear')}<span><strong>${l('Slavic goddess')}</strong><span>${l('Hana rises in a glow of light.')}</span></span>${icon('arrow')}</button></div><button class="button secondary" data-action="admin" type="button">${l('Scene select')}</button></div></section>
+    <section class="ending-screen overlay" data-overlay="win" role="dialog" aria-modal="true" aria-labelledby="win-title" hidden><div class="ending-panel parchment"><div class="dialog-language">${languageButton}</div><div class="ending-emblem" aria-hidden="true">${icon('home')}${sprig}</div><span class="eyebrow">${l('A gift from the mountains')}</span><h2 id="win-title">${l('Supper, then a little wonder.')}</h2><p class="ending-lead">${l('The mountains have one more gift for Hana.')}</p><p>${l('The garden’s watered. Hana and her husband John eat supper as baby Aldo sleeps. Hana glows and rises, a Slavic goddess of home and harvest.')}</p><div class="ending-gifts"><span>${icon('potato')}${l('6 potatoes')}</span><span>${icon('tear')}${l('3 fairy tears')}</span></div><button class="button primary" data-action="restart" data-initial-focus type="button">${l('Walk again')} ${icon('arrow')}</button><button class="button secondary" data-action="admin" type="button">${l('Scene select')}</button></div></section>`;
 
   const find = (selector) => root.querySelector(selector);
   const play = find('.play-surface');
+  const finaleSceneSelect = find('.finale-scene-select');
   const dialogs = new Map([...root.querySelectorAll('[data-overlay]')].map((el) => [el.dataset.overlay, el]));
   const textNodes = new Map();
   const setText = (selector, value) => { const node = textNodes.get(selector) || find(selector); textNodes.set(selector, node); if (node.textContent !== value) node.textContent = value; };
@@ -157,6 +171,14 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
     for (const button of root.querySelectorAll('.is-held')) button.classList.remove('is-held');
   }
   listen(root, 'click', (event) => {
+    const sequence = event.target.closest('[data-sequence]');
+    if (sequence && currentOverlay === 'admin') {
+      const variant = find(`[data-scene-variant="${sequence.dataset.sequence}"]`);
+      onAction('jump', variant?.value || sequence.dataset.sequence);
+      return;
+    }
+    const ending = event.target.closest('[data-ending]');
+    if (ending && currentOverlay === 'endingChoice') { onAction('ending', ending.dataset.ending); return; }
     const song = event.target.closest('[data-song-choice]');
     if (song && !song.disabled && currentOverlay === 'songs') { onAction('chooseSong', song.dataset.songChoice); return; }
     const choice = event.target.closest('[data-dialogue-choice]');
@@ -176,8 +198,8 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
     }
     if (event.key !== 'Tab' || !currentOverlay) return;
     const dialog = dialogs.get(currentOverlay);
-    if (!dialog) { event.preventDefault(); return; }
-    const controls = [...dialog.querySelectorAll('button:not([disabled]), a[href], [tabindex="0"]')].filter(visible);
+    if (!dialog) return;
+    const controls = [...dialog.querySelectorAll('button:not([disabled]), select:not([disabled]), a[href], [tabindex="0"]')].filter(visible);
     if (!controls.length) { event.preventDefault(); dialog.focus(); return; }
     const first = controls[0]; const last = controls[controls.length - 1];
     if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
@@ -244,14 +266,15 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
     const showPlay = game.phase === 'playing';
     play.hidden = !showPlay;
     play.inert = Boolean(overlay);
+    finaleSceneSelect.hidden = game.phase !== 'won' || game.ending !== 'goddess' || dialogs.has(overlay);
     if (overlayChanged) {
       if (!heldInputs || heldInputs.overlay !== overlay) releaseInputs();
       heldInputs = null;
       if (root.contains(document.activeElement)) focusByOverlay.set(previousOverlay || null, document.activeElement);
       for (const [name, dialog] of dialogs) dialog.hidden = name !== overlay;
-      const focusTarget = (!overlay || overlay === 'dialogue' ? null : focusByOverlay.get(overlay)) || (overlay ? dialogs.get(overlay)?.querySelector('[data-initial-focus]') : null);
-      const fallback = !overlay && showPlay ? document.querySelector('#world') : null;
-      const nextFocus = visible(focusTarget) ? focusTarget : overlay ? dialogs.get(overlay)?.querySelector('[data-initial-focus]') : fallback;
+      const focusTarget = (!overlay || overlay === 'dialogue' && previousOverlay !== 'admin' ? null : focusByOverlay.get(overlay)) || (overlay ? dialogs.get(overlay)?.querySelector('[data-initial-focus]') : null);
+      const fallback = !finaleSceneSelect.hidden ? finaleSceneSelect : !overlay && showPlay ? document.querySelector('#world') : null;
+      const nextFocus = visible(focusTarget) ? focusTarget : dialogs.get(overlay)?.querySelector('[data-initial-focus]') || fallback;
       if (nextFocus) nextFocus.focus({ preventScroll: true });
       previousOverlay = overlay;
     }
@@ -415,7 +438,7 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
   }
   for (const direction of directionPointers.values()) find(`[data-direction="${direction}"]`).classList.add('is-held');
   if (actionPointers.size) touchAction.classList.add('is-held');
-  for (const [index, node] of [...root.querySelectorAll('button, a[href], [tabindex]')].entries()) node.dataset.focusKey = String(index);
+  for (const [index, node] of [...root.querySelectorAll('button, select, a[href], [tabindex]')].entries()) node.dataset.focusKey = String(index);
   return { update, dispose({ preserveInputs = false } = {}) {
     disposed = true;
     abort.abort();
@@ -433,12 +456,14 @@ export function createUI(root, onAction) {
       const nextLanguage = game.language === 'en' ? 'en' : 'cs';
       if (nextLanguage !== language) {
         const focusKey = root.contains(document.activeElement) ? document.activeElement.dataset.focusKey : null;
+        const selectedVariants = [...root.querySelectorAll('[data-scene-variant]')].map((select) => [select.dataset.sceneVariant, select.value]);
         const openPanel = root.querySelector('[data-overlay]:not([hidden]) .parchment');
         const scrollTop = openPanel?.scrollTop || 0;
         language = nextLanguage;
         const heldInputs = current?.dispose({ preserveInputs: true });
         current = createLocalizedUI(root, onAction, language, heldInputs);
         current.update(game, view);
+        for (const [id, value] of selectedVariants) root.querySelector(`[data-scene-variant="${id}"]`).value = value;
         const nextPanel = root.querySelector('[data-overlay]:not([hidden]) .parchment');
         if (nextPanel) nextPanel.scrollTop = scrollTop;
         const previousControl = focusKey == null ? null : root.querySelector(`[data-focus-key="${focusKey}"]`);

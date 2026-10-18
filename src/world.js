@@ -6,6 +6,7 @@ import { getNearby } from './game.js';
 import { barkTexture, treeTrunkGeometry, tearTexture, tearJarTexture, breezeAt } from './forest-art.js';
 import { TUNES, songPhrase } from './songs.js';
 import { createFamilyFinale } from './finale-scene.js';
+import { actionFrame, createAnimatedMaterial, cycleFrame, updateAnimatedMap } from './animation.js';
 
 const phrases = Object.fromEntries(Object.keys(TUNES).map(id => [id, songPhrase(id)]));
 
@@ -180,7 +181,9 @@ export function createWorld(container) {
     object.position.set(x, y, z); activeGroup.add(object); return object;
   }
   function sprite(map, x, z, width, height, y = .04, options = {}) {
-    const mat = new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false, alphaTest: .025, ...options });
+    const { animated = false, ...appearance } = options;
+    const settings = { map, transparent: true, depthWrite: false, alphaTest: .025, ...appearance };
+    const mat = animated ? createAnimatedMaterial(settings) : new THREE.SpriteMaterial(settings);
     materials.add(mat);
     const object = new THREE.Sprite(mat);
     object.center.set(.5, 0);
@@ -528,7 +531,7 @@ export function createWorld(container) {
     }
     const glow = sprite(maps.glow, target.x, target.z, 4.5, 4.5, 1.9, { color: target.color, blending: THREE.AdditiveBlending, opacity: .23 });
     glow.center.set(.5, .5);
-    const object = sprite(painted.fairies[i][0], target.x, target.z, 2.4, 2.4, 1.0);
+    const object = sprite(painted.fairies[i][0], target.x, target.z, 2.4, 2.4, 1.0, { animated: true });
     object.name = 'fairy';
     const halo = mesh(new THREE.RingGeometry(1.15, 1.19, 48), material(target.color, { transparent: true, opacity: .7, side: THREE.DoubleSide, depthWrite: false }), target.x, .07, target.z);
     halo.rotation.x = -Math.PI / 2;
@@ -545,7 +548,7 @@ export function createWorld(container) {
   const creatureObjects = CREATURES.map((target, i) => {
     const kind = target.id;
     const height = kind === 'deer' ? 3.5 : kind === 'badger' ? 2.8 : 2.5;
-    const object = sprite(painted.creatures[i][0], target.x, target.z, height, height);
+    const object = sprite(painted.creatures[i][0], target.x, target.z, height, height, .04, { animated: true });
     shadow(target.x, target.z, 1.8, 1, .6);
     const indicatorHeight = kind === 'badger' ? 1.6 : height;
     const indicator = sprite(maps.conversation, target.x, target.z, .75, .75, indicatorHeight + .15);
@@ -604,12 +607,12 @@ export function createWorld(container) {
   welcomeMat.rotation.x = -Math.PI / 2;
   const furniture = Object.fromEntries(HOUSE_OBSTACLES.map(item => [item.id, item]));
   const john = HOUSE_TARGETS[0], cot = furniture.cot;
-  const johnFigure = sprite(painted.actions[9], john.x, john.z, 3.3, 3.3, .07);
+  const johnFigure = sprite(painted.actions[9], john.x, john.z, 3.3, 3.3, .07, { animated: true });
   const johnShadow = shadow(john.x, john.z, 1.7, 1, .6);
   const aldoCot = sprite(maps.aldoCot, cot.x, cot.z, cot.radius * 2.4, cot.radius * 1.89, .07);
   const cotShadow = shadow(cot.x, cot.z, cot.radius * 2.35, cot.radius * 1.72, .45);
   const familyIndicator = sprite(maps.conversation, john.x, john.z, .65, .65, 3.05);
-  const percy = sprite(painted.cat[0], HOUSE_CAT.x, HOUSE_CAT.z, 1.05, 1.05, .03);
+  const percy = sprite(painted.cat[0], HOUSE_CAT.x, HOUSE_CAT.z, 1.05, 1.05, .03, { animated: true });
   const percyShadow = shadow(HOUSE_CAT.x, HOUSE_CAT.z, 1, .65, .5);
   const catRug = mesh(new THREE.CylinderGeometry(.65, .65, .035, 32), material('#aa7354'), HOUSE_CAT.x, .02, HOUSE_CAT.z);
   catRug.scale.z = .7;
@@ -678,7 +681,7 @@ export function createWorld(container) {
   houseMarker.rotation.x = -Math.PI / 2;
 
   activeGroup = people;
-  const hana = sprite(painted.actions[0], START.x, START.z, 3.15, 3.15, .07);
+  const hana = sprite(painted.actions[0], START.x, START.z, 3.15, 3.15, .07, { animated: true });
   hana.name = 'hana';
   const tearJar = sprite(jarMaps[0][0], START.x, START.z, .7, .88, 1.05);
   tearJar.name = 'tear-jar'; tearJar.visible = false;
@@ -723,6 +726,7 @@ export function createWorld(container) {
   const projectedInteraction = new THREE.Vector3(), projectedEdge = new THREE.Vector3();
   const projectedPlayer = new THREE.Vector3(), projectedBase = new THREE.Vector3(), projectedTop = new THREE.Vector3();
   const tearDestination = new THREE.Vector3();
+  const fireLight = new THREE.Color('#e5aa5f');
   let width = 1, height = 1, cameraDistance = 32, elapsedWalk = 0;
   let previousScene = 'outdoors', previousPhase = 'intro', previousDance = false, transformationTime = 0;
   let previousGame = null;
@@ -779,22 +783,22 @@ export function createWorld(container) {
     const direction = player.direction || 0;
     const idleFrame = reducedMotion.matches ? 0 : motionTime % 5.3 > 5.13 ? 1 : Math.floor(motionTime / 3) % 2 ? 2 : 0;
     const action = game.actionAnimation;
-    const actionFrame = action?.kind === 'prepare' ? 5 : action?.kind === 'cook' ? 6 : action?.kind === 'serve' ? 7 : 0;
+    const actionPose = action?.kind === 'prepare' ? 5 : action?.kind === 'cook' ? 6 : action?.kind === 'serve' ? 7 : 0;
     const petFacesLeft = HOUSE_CAT.x - player.x - (HOUSE_CAT.z - player.z) < 0;
-    const actionMap = action?.kind === 'gather' ? painted.gather[Math.min(5, Math.floor(action.progress * 6))]
-      : action?.kind === 'pet' ? painted.pet[Math.min(5, Math.floor(action.progress * 6)) + (petFacesLeft ? 6 : 0)]
-      : painted.actions[actionFrame];
+    const actionMap = action?.kind === 'gather' ? painted.gather[actionFrame(action.progress, painted.gather.length)]
+      : action?.kind === 'pet' ? painted.pet[actionFrame(action.progress, painted.petFrameCount) + (petFacesLeft ? painted.petFrameCount : 0)]
+      : painted.actions[actionPose];
     const performance = game.activeSong;
     const phrase = performance ? phrases[performance.songId] : null;
     const responseTime = performance ? performance.elapsed - (performance.kind === 'learn' ? phrase.duration : 0) : -1;
     const note = phrase?.notes.find(note => responseTime >= note.at && responseTime < note.at + note.duration);
     const sounding = note?.note != null;
-    const singFrame = !sounding ? (responseTime < 0 ? 0 : 5) : reducedMotion.matches ? 2 : [1, 2, 3, 4, 2, 1][Math.floor(responseTime * 2) % 6];
+    const singFrame = !sounding ? (responseTime < 0 ? 0 : painted.singFrameCount - 1) : reducedMotion.matches ? 2 : cycleFrame(responseTime, 3, painted.singFrameCount);
     const songTarget = performance && (performance.kind === 'learn' ? FAIRIES : SONG_SITES).find(target => target.id === performance.targetId);
     const singLeft = songTarget && songTarget.x - songTarget.z < player.x - player.z;
-    const hanaMap = transformed ? painted.actions[8] : performance ? painted.sing[singFrame + (singLeft ? 6 : 0)]
+    const hanaMap = transformed ? painted.actions[8] : performance ? painted.sing[singFrame + (singLeft ? painted.singFrameCount : 0)]
       : action ? actionMap : player.moving || direction > 1 ? painted.walk[direction * painted.walkFrameCount + frame] : painted.idle[idleFrame + (direction === 1 ? 6 : 0)];
-    if (hana.material.map !== hanaMap) hana.material.map = hanaMap;
+    updateAnimatedMap(hana.material, hanaMap, time, reducedMotion.matches || resetPerformance);
     if (player.moving && !reducedMotion.matches) hana.position.y += Math.abs(Math.sin(walkPhase * Math.PI * 2)) * .045;
     hana.position.y += lift;
     const goddessScale = 1 + THREE.MathUtils.smoothstep(transformation, .45, .9) * .12;
@@ -810,14 +814,14 @@ export function createWorld(container) {
     });
     // John takes his seat at the table as soon as Hana starts serving.
     const seated = won || action?.kind === 'serve';
-    johnFigure.material.map = seated ? painted.actions[11]
-      : game.conversation === 'john' ? painted.actions[10] : painted.idle[3 + idleFrame];
+    updateAnimatedMap(johnFigure.material, seated ? painted.actions[11]
+      : game.conversation === 'john' ? painted.actions[10] : painted.idle[3 + idleFrame], time, reducedMotion.matches || resetPerformance);
     johnFigure.scale.y = 3.3 * (1 + breath);
     johnFigure.position.set(seated ? table.x - 2 : john.x, .07, seated ? table.z + .4 : john.z);
     const catNear = Math.hypot(player.x - HOUSE_CAT.x, player.z - HOUSE_CAT.z) < 3;
     const catFrame = reducedMotion.matches ? 0 : game.actionAnimation?.kind === 'pet' ? 2
       : catNear ? (motionTime % 5 > 4.8 ? 1 : 0) : Math.floor(motionTime / 8) % 3 === 0 ? 3 : 0;
-    percy.material.map = painted.cat[catFrame];
+    updateAnimatedMap(percy.material, painted.cat[catFrame], time, reducedMotion.matches || resetPerformance);
     percy.scale.y = 1.05 * (1 + breath * 1.4);
     hanaShadow.material.opacity = .8 - transformation * .32;
     hanaShadow.scale.set(1 - transformation * .2, 1 - transformation * .2, 1);
@@ -839,7 +843,7 @@ export function createWorld(container) {
     familyIndicator.visible = indoors && houseStep < 2 && !won;
     familyIndicator.position.set(station.x, houseStep === 0 ? 3.05 : 3, houseStep === 0 ? station.z : cot.z);
     stoveFire.visible = houseStep >= 3;
-    stoveFire.material.color.set(reducedMotion.matches || Math.sin(motionTime * 4) > 0 ? '#e5aa5f' : '#ce8244');
+    stoveFire.material.color.set('#ce8244').lerp(fireLight, reducedMotion.matches ? 1 : .5 + Math.sin(motionTime * 4) * .5);
     prepPotatoes.forEach(item => { item.visible = houseStep < 3; });
     dinner.forEach(item => { item.visible = won; });
     steam.forEach((object, i) => {
@@ -855,7 +859,7 @@ export function createWorld(container) {
     for (const target of potatoObjects) {
       const site = SONG_SITES.find(site => site.potatoId === target.id);
       const restored = !site || game.restoredSites.includes(site.id);
-      const lifted = action?.kind === 'gather' && action.targetId === target.id && action.progress >= 1 / 3;
+      const lifted = action?.kind === 'gather' && action.targetId === target.id && action.progress >= painted.gatherPickupProgress;
       const visible = !collectedPotatoes.includes(target.id) && restored && !lifted;
       target.plants.forEach(plant => { plant.material.color.set(restored ? '#ffffff' : '#928068'); plant.scale.y = restored ? 1.3 : .62; });
       target.soil.position.y = restored ? -.06 : -.13;
@@ -895,9 +899,9 @@ export function createWorld(container) {
       target.object.position.y = 1 + Math.sin(motionTime * 1.7 + target.index * 2) * .18;
       target.glow.position.y = 2 + Math.sin(motionTime * 1.7 + target.index * 2) * .18;
       target.glow.material.opacity = .23 + Math.sin(motionTime * 1.3 + target.index) * .05;
-      const fairyFrame = reducedMotion.matches ? 0 : [0, 1, 2, 1][Math.floor(motionTime * 5 + target.index) % 4];
+      const fairyFrame = reducedMotion.matches ? 0 : cycleFrame(motionTime + target.index / 5, .8, painted.fairies[target.index].length);
       const fairyMap = painted.fairies[target.index][fairyFrame];
-      if (target.object.material.map !== fairyMap) target.object.material.map = fairyMap;
+      updateAnimatedMap(target.object.material, fairyMap, time, reducedMotion.matches || resetPerformance);
       const near = Math.hypot(player.x - FAIRIES[target.index].x, player.z - FAIRIES[target.index].z) < 3.5;
       target.halo.material.opacity = near ? .65 + (game.activeSong?.progress || 0) * .3 : .4;
     }
@@ -936,8 +940,9 @@ export function createWorld(container) {
       const near = Math.hypot(player.x - target.x, player.z - target.z) < 5;
       const turn = near ? (player.x - player.z > target.x - target.z ? 1 : -1) : 1;
       target.object.scale.set(target.width, target.height * (1 + (reducedMotion.matches ? 0 : Math.sin(motionTime * (target.id === 'badger' ? 1.3 : 2) + target.index) * .012)), 1);
-      const frame = reducedMotion.matches ? 0 : Math.floor(motionTime * (near ? 1.5 : .5) + target.index) % 3;
-      target.object.material.map = painted.creatures[target.index][frame + (turn < 0 ? 3 : 0)];
+      const duration = near ? 2 : 6;
+      const frame = reducedMotion.matches ? 0 : cycleFrame(motionTime + target.index * duration / 3, duration, painted.creatureFrameCount);
+      updateAnimatedMap(target.object.material, painted.creatures[target.index][frame + (turn < 0 ? painted.creatureFrameCount : 0)], time, reducedMotion.matches || resetPerformance);
       target.indicator.material.opacity = (game.talked || []).includes(target.id) ? .32 : .9;
       target.indicator.position.y = target.indicatorHeight + .15 + Math.sin(motionTime * 1.6 + target.index) * .06;
     }

@@ -1,0 +1,213 @@
+{
+  "tool": "Built-in image_gen",
+  "originalsPreserved": true,
+  "assets": [
+    {
+      "file": "public/assets/characters/hana-sing-fluid.png",
+      "frames": 12,
+      "columns": 4,
+      "rows": 3,
+      "rowEdges": [
+        0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1
+      ],
+      "columnEdges": [
+        0,
+        0.25,
+        0.5,
+        0.75,
+        1
+      ],
+      "prompt": "Use case: identity-preserve.\nAsset type: production transparent game animation sprite sheet.\nInput images: Image 1 hana-sing.png is the EDIT TARGET and authoritative full-body style, costume, anatomy, and orientation. Image 2 portraits.png is a supporting face reference, Hana on the LEFT only. Do not draw John.\nPrimary request: expand Hana's six singing poses into a NEW TWELVE-FRAME gently progressive singing loop, exactly FOUR equal columns by THREE equal rows, read left to right across each row. The visible output must contain exactly 12 full-body Hanas, one figure per cell.\nKeep the SAME Hana, adult face, honey-blonde braid with darker roots, red ribbon behind hair, ivory blouse with red-blue floral embroidery, teal calf-length skirt, white embroidered apron, teal waist sash, brown ankle boots, fine painted Czech storybook rendering, soft upper-left light. No basket or other prop. Same front three-quarter orientation facing screen right in EVERY cell. No mirrored or front-facing variants.\nMotion is ONLY gentle arm gesture and a subtly singing mouth. Fix head angle, eyes open, soft pleasant expression, body, hips, and planted boots throughout. No head turns, no dramatic open mouth, no blink sequence. One hand remains softly on upper chest while the other slowly opens, lifts, and returns.\nExact chronological frames: 1 hands softly clasped at chest; 2 free hand separates slightly; 3 free elbow opens, palm near lower chest; 4 free forearm eases out diagonally down; 5 palm extends to screen right just above waist; 6 palm extends a little farther at waist height; 7 palm lifts slowly to lower chest height; 8 palm lifts slightly higher with relaxed elbow; 9 palm gently lowers; 10 elbow bends inward, hand moving toward chest; 11 free hand nearly meets chest hand; 12 returns to almost the frame-1 clasp. These MUST be twelve different small successive phases, not copies of six poses. Smooth small changes between neighbors, including frame12 back to1.\nLayout: exactly 4 columns x3 rows of equal-size cells on a genuine alpha-transparent canvas. Suggested 2048x1536 with 512x512 cells. Every cell has the SAME adult body scale and head size. Boots lie on the SAME local baseline about88% down each cell. Center hips at the horizontal middle of each cell; keep planted boots in identical positions. At least9% transparent padding at every cell edge. Complete hair, boots, fingertips, and ribbons stay inside their own cell. Clean fully transparent gutters at each quarter-width and third-height boundary.\nNo drawn grid, labels, numbers, text, extra figure, backdrop, glow, halo, brown gradient, floor, cast shadows, or checkerboard pixels. Preserve genuine transparent alpha outside all figures."
+    },
+    {
+      "file": "public/assets/characters/hana-pet-fluid.png",
+      "frames": 12,
+      "columns": 4,
+      "rows": 3,
+      "rowEdges": [
+        0,
+        0.3775322283609576,
+        0.6593001841620626,
+        1
+      ],
+      "columnEdges": [
+        0,
+        0.25,
+        0.5,
+        0.75,
+        1
+      ],
+      "prompt": "Use case: identity-preserve.\nAsset type: production transparent game animation sprite sheet.\nInput images: Image 1 hana-pet.png is the EDIT TARGET and authoritative full-body style, costume, anatomy, and orientation. Image 2 portraits.png is supporting face reference, Hana on the LEFT only. Do not draw John.\nPrimary request: expand the original six petting poses into a NEW TWELVE-FRAME progressive action, exactly FOUR equal columns by THREE equal rows, read left to right across each row. Exactly12 full-body Hanas, one in every cell.\nKeep the SAME Hana, adult face, honey-blonde braid and darker roots, red ribbon behind hair, ivory red-blue floral-embroidered blouse, teal calf-length skirt, white embroidered apron, teal waist sash, brown ankle boots, wicker basket resting on her screen-left forearm, fine painted Czech storybook finish, and soft upper-left light. Same front three-quarter orientation facing slightly screen right in EVERY cell. Keep face, head size, and anatomical scale consistent.\nHana bends smoothly to pet a separately rendered cat at ankle height on screen right. Draw ONLY HANA, no cat. Her free screen-right hand stays EMPTY with an open relaxed palm. No digging, grasping, potatoes, or new objects.\nExact chronological phases: 1 fully upright, free hand relaxed by side; 2 knees soften slightly, torso tips forward a little; 3 bends a little farther, free hand passes thigh; 4 knees bend halfway, hand passes knee; 5 settles into low crouch, hand approaches ankle height; 6 low crouch, open palm reaches down/right; 7 same low crouch, open palm moves slightly farther right in a gentle stroke; 8 same low crouch, palm makes another small outward stroke; 9 palm retracts gently, knees start to straighten; 10 rises halfway, empty free hand near knee; 11 almost upright, hand passing thigh; 12 fully upright again with hand relaxed, closely matching frame1. Twelve distinct SMALL successive phases, not repeated copies of six poses.\nLayout: exactly4 columns x3 rows, equal-size cells, genuine alpha transparency. Suggested2048x1536 with512x512 cells. Same physical body scale throughout: crouching figures naturally become SHORTER, never enlarge them. Same planted boot positions and local baseline about88% down each cell. Center hips horizontally. Keep every head, hand, basket, ribbon, and boot inside its cell with at least8% fully transparent padding. Clean transparent gutters at quarter-width and third-height boundaries. No cell crossovers.\nNo grid, labels, numbers, text, extra figures, animals, background, glow, halo, brown gradient, checkerboard pixels, floor, or cast shadows. Preserve genuine alpha transparency everywhere outside Hana and her existing basket.",
+      "repairPrompt": "Use case: identity-preserve. Asset type: transparent game sprite sheet.\nEDIT TARGET: the attached 12-pose Hana petting sheet. Make a LAYOUT REPAIR ONLY. Preserve all twelve existing Hana figures, their exact faces, costume, basket, lighting, painted style, and chronological petting action. Do not invent new poses, repeat poses, add figures, or change any figure's identity.\nThe present figures are TOO LARGE and bleed through the required cell boundaries. Reflow them into a strict FOUR equal columns by THREE equal rows with generous EMPTY TRANSPARENT space. Exactly one existing figure inside each cell in the same reading order, one full body per cell, no overlapping neighboring cells.\nCRITICAL: uniformly REDUCE ALL TWELVE figures to 75% of their current physical scale. Standing figure height must be about70% of one cell height. Crouched figures remain proportionally shorter, with the SAME head/body physical scale as standing figures. Align all boot soles to the exact same local baseline at85% cell height. Keep hips at the cell's horizontal center. At least12% completely transparent space ABOVE every head and BELOW every boot in each cell, and at least10% transparent margin at left/right edges. Fully transparent uninterrupted gutters cross the ENTIRE canvas at x=25%,50%,75% and y=33.333%,66.667%.\nNo drawn grid, text, labels, checkerboard pixels, glow, halo, cast shadows, ground, or background. GENUINE transparent alpha. Keep every hair, fingertip, basket, apron, and boot inside its own equal grid cell. Output remains exactly4columns x3rows."
+    },
+    {
+      "file": "public/assets/characters/fairy-birch-fluid.png",
+      "frames": 8,
+      "columns": 4,
+      "rows": 2,
+      "rowEdges": [
+        0,
+        0.5107421875,
+        1
+      ],
+      "columnEdges": [
+        0,
+        0.2864583333333333,
+        0.5286458333333334,
+        0.7447916666666666,
+        1
+      ],
+      "prompt": "Use case: identity-preserve\nAsset type: production game sprite sheet, 8-frame fairy flutter idle animation.\nInput image: edit target and exact identity/style reference. Preserve the same brown-haired woman with long side braid, leafy green circlet, cream silk puff-sleeve dress with birch-leaf embroidery, green sash and layered green leaf skirt, green crossed-strap slippers, pale green translucent leaf-veined wings, white flower wand in her raised left-of-image hand, other hand open. Use only that one character, not her original three duplicate positions.\nPrimary request: replace the 3-pose sheet with EXACTLY EIGHT distinct full-body frames arranged in an EXACT 4-column by 2-row uniform grid. Read order left to right, top row then bottom row. Canvas 1536 by 1024, each cell 384 by 512. This is a single sprite atlas, no visible grid.\nAnimation: a smooth closed-loop wing beat. Frame 1 fully open wings; 2 wings 75% open; 3 wings 50% open; 4 wings 25% open near body; 5 narrowest folded-back wings; 6 wings 25% open on upstroke; 7 wings 50% open; 8 wings 75% open returning toward frame 1. Make each wing position clearly different; add only tiny natural matching cloth/hair drift and one restrained eyelid blink near frame 5. Keep the head/body pose substantially stable and the flower wand rigidly attached to the hand.\nComposition: each figure centered at exactly the same local cell position, same body proportions/face, scale, head height, and foot baseline. Head near local y=65, feet baseline y=465. Full body, wings, wand, slippers all inside each cell, with generous clear transparent gutters at least 25 pixels on all sides. No feature may cross a cell boundary. Legs and hands retain original anatomy. No big bounce or growth between frames.\nStyle/medium: retain the original detailed gently painted fantasy storybook realism, same exact costume and color palette, crisp readable silhouette at small gameplay size.\nBackdrop: genuine alpha transparency everywhere outside each character. No colored or black background, glow, aura, vignette, ground plane, or ground shadow. Fine translucent wing membranes may remain semitransparent.\nAvoid: text, numbers, labels, grid lines, borders, contact shadows, drop shadows, extra people, duplicate identical poses, altered costume/identity, cropped limbs, extra fingers/limbs/wings.",
+      "repairPrompt": "Use case: precise-object-edit\nEdit target: the eight-frame fairy sheet. Targeted correction: fix the sprite-cell spacing and registration only.\nPreserve all eight character identities, faces, colors, costumes, painted detail, and the eight distinct wing positions already shown. Keep exact order and EXACT 4 columns by 2 rows in a 1536 by 1024 canvas.\nEach cell is EXACTLY 384 by 512. Shrink every character uniformly to fit inside the central 280 by 400 pixel safe rectangle of its own cell: local x=52 to 332, local y=65 to 465. The full wings, wand, hair, dress, hands, and feet must fit inside that safe rectangle. Keep the vertical BODY center line at local x=192, and feet baseline local y=465, identical across all frames. Same head height and body scale in every cell; do not crop existing feet or wing tips. Correct any previously drifting character position. Leave at least 45 empty transparent pixels below the feet and generous equal clear gutters between cells.\nMake the background genuinely alpha transparent, clean cutout edges, no glow, aura, vignette, ground, groundshadow, colored haze, grid, borders, text, or labels. Leave only the actual fairy and translucent wing membranes. Do not alter pose details other than uniformly shrinking and registering each frame."
+    },
+    {
+      "file": "public/assets/characters/fairy-ridge-fluid.png",
+      "frames": 8,
+      "columns": 4,
+      "rows": 2,
+      "rowEdges": [
+        0,
+        0.5078125,
+        1
+      ],
+      "columnEdges": [
+        0,
+        0.2877604166666667,
+        0.51953125,
+        0.7486979166666666,
+        1
+      ],
+      "prompt": "Use case: identity-preserve\nAsset type: production game sprite sheet, 8-frame fairy flutter idle animation.\nInput image: edit target and exact identity/style reference. Preserve the same smiling auburn-haired woman with loose curls, small cream daisy flower crown, peach-pink puff-sleeve embroidered dress, sage sash and leaf skirt accents, peach crossed-strap slippers, peach-and-cream butterfly wings with small golden eye spots, daisy wand in her raised left-of-image hand, other hand softly resting at waist. Use only that one character, not her original three duplicate positions.\nPrimary request: replace the 3-pose sheet with EXACTLY EIGHT distinct full-body frames arranged in an EXACT 4-column by 2-row uniform grid. Read order left to right, top row then bottom row. Canvas 1536 by 1024, each cell 384 by 512. This is a single sprite atlas, no visible grid.\nAnimation: a smooth closed-loop wing beat. Frame 1 fully open wings; 2 wings 75% open; 3 wings 50% open; 4 wings 25% open near body; 5 narrowest folded-back wings; 6 wings 25% open on upstroke; 7 wings 50% open; 8 wings 75% open returning toward frame 1. Make each wing position clearly different; add only tiny natural matching cloth/hair drift and one restrained eyelid blink near frame 5. Keep the head/body pose substantially stable and the flower wand rigidly attached to the hand.\nComposition: each figure centered at exactly the same local cell position, same body proportions/face, scale, head height, and foot baseline. Head near local y=65, feet baseline y=465. Full body, wings, wand, slippers all inside each cell, with generous clear transparent gutters at least 25 pixels on all sides. No feature may cross a cell boundary. Legs and hands retain original anatomy. No big bounce or growth between frames.\nStyle/medium: retain the original detailed gently painted fantasy storybook realism, same exact costume and color palette, crisp readable silhouette at small gameplay size.\nBackdrop: genuine alpha transparency everywhere outside each character. No colored or black background, glow, aura, vignette, ground plane, or ground shadow. Fine translucent wing membranes may remain semitransparent.\nAvoid: text, numbers, labels, grid lines, borders, contact shadows, drop shadows, extra people, duplicate identical poses, altered costume/identity, cropped limbs, extra fingers/limbs/wings.",
+      "repairPrompt": "Use case: precise-object-edit\nEdit target: the eight-frame fairy sheet. Targeted correction: fix the sprite-cell spacing and registration only.\nPreserve all eight character identities, faces, colors, costumes, painted detail, and the eight distinct wing positions already shown. Keep exact order and EXACT 4 columns by 2 rows in a 1536 by 1024 canvas.\nEach cell is EXACTLY 384 by 512. Shrink every character uniformly to fit inside the central 280 by 400 pixel safe rectangle of its own cell: local x=52 to 332, local y=65 to 465. The full wings, wand, hair, dress, hands, and feet must fit inside that safe rectangle. Keep the vertical BODY center line at local x=192, and feet baseline local y=465, identical across all frames. Same head height and body scale in every cell; do not crop existing feet or wing tips. Correct any previously drifting character position. Leave at least 45 empty transparent pixels below the feet and generous equal clear gutters between cells.\nMake the background genuinely alpha transparent, clean cutout edges, no glow, aura, vignette, ground, groundshadow, colored haze, grid, borders, text, or labels. Leave only the actual fairy and translucent wing membranes. Do not alter pose details other than uniformly shrinking and registering each frame."
+    },
+    {
+      "file": "public/assets/characters/fairy-stream-fluid.png",
+      "frames": 8,
+      "columns": 4,
+      "rows": 2,
+      "rowEdges": [
+        0,
+        0.5107421875,
+        1
+      ],
+      "columnEdges": [
+        0,
+        0.25,
+        0.5,
+        0.75,
+        1
+      ],
+      "prompt": "Use case: identity-preserve\nAsset type: production game sprite sheet, 8-frame fairy flutter idle animation.\nInput image: edit target and exact identity/style reference. Preserve the same dark teal-haired woman with long loose curls, olive leaf circlet, layered teal-and-cream silk leaf dress and teal sash, teal crossed-strap slippers, translucent icy blue dragonfly-like wings with fine white veins, white water-flower wand in her raised left-of-image hand, other hand open. Use only that one character, not her original three duplicate positions.\nPrimary request: replace the 3-pose sheet with EXACTLY EIGHT distinct full-body frames arranged in an EXACT 4-column by 2-row uniform grid. Read order left to right, top row then bottom row. Canvas 1536 by 1024, each cell 384 by 512. This is a single sprite atlas, no visible grid.\nAnimation: a smooth closed-loop wing beat. Frame 1 fully open wings; 2 wings 75% open; 3 wings 50% open; 4 wings 25% open near body; 5 narrowest folded-back wings; 6 wings 25% open on upstroke; 7 wings 50% open; 8 wings 75% open returning toward frame 1. Make each wing position clearly different; add only tiny natural matching cloth/hair drift and one restrained eyelid blink near frame 5. Keep the head/body pose substantially stable and the flower wand rigidly attached to the hand.\nComposition: each figure centered at exactly the same local cell position, same body proportions/face, scale, head height, and foot baseline. Head near local y=65, feet baseline y=465. Full body, wings, wand, slippers all inside each cell, with generous clear transparent gutters at least 25 pixels on all sides. No feature may cross a cell boundary. Legs and hands retain original anatomy. No big bounce or growth between frames.\nStyle/medium: retain the original detailed gently painted fantasy storybook realism, same exact costume and color palette, crisp readable silhouette at small gameplay size.\nBackdrop: genuine alpha transparency everywhere outside each character. No colored or black background, glow, aura, vignette, ground plane, or ground shadow. Fine translucent wing membranes may remain semitransparent.\nAvoid: text, numbers, labels, grid lines, borders, contact shadows, drop shadows, extra people, duplicate identical poses, altered costume/identity, cropped limbs, extra fingers/limbs/wings.",
+      "repairPrompt": "Use case: precise-object-edit\nEdit target: the eight-frame fairy sheet. Targeted correction: fix the sprite-cell spacing and registration only.\nPreserve all eight character identities, faces, colors, costumes, painted detail, and the eight distinct wing positions already shown. Keep exact order and EXACT 4 columns by 2 rows in a 1536 by 1024 canvas.\nEach cell is EXACTLY 384 by 512. Shrink every character uniformly to fit inside the central 280 by 400 pixel safe rectangle of its own cell: local x=52 to 332, local y=65 to 465. The full wings, wand, hair, dress, hands, and feet must fit inside that safe rectangle. Keep the vertical BODY center line at local x=192, and feet baseline local y=465, identical across all frames. Same head height and body scale in every cell; do not crop existing feet or wing tips. Correct any previously drifting character position. Leave at least 45 empty transparent pixels below the feet and generous equal clear gutters between cells.\nMake the background genuinely alpha transparent, clean cutout edges, no glow, aura, vignette, ground, groundshadow, colored haze, grid, borders, text, or labels. Leave only the actual fairy and translucent wing membranes. Do not alter pose details other than uniformly shrinking and registering each frame."
+    },
+    {
+      "file": "public/assets/characters/fox-fluid.png",
+      "frames": 6,
+      "columns": 3,
+      "rows": 2,
+      "rowEdges": [
+        0,
+        0.5,
+        1
+      ],
+      "columnEdges": [
+        0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1
+      ],
+      "prompt": "Use case: identity-preserve\nAsset type: production game sprite sheet, six-frame forest animal idle loop.\nInput image: edit target and exact animal/style reference. Preserve same seated red fox facing right in three-quarter profile, rusty orange fur, creamy-white cheeks/chest/tail tip, dark lower legs, long fluffy tail curled across front of paws. Use only that animal, not the reference's original three duplicate positions.\nPrimary request: replace the three-pose sheet with EXACTLY SIX distinct full-body frames in an EXACT uniform 3-column by 2-row grid. Read left to right across top row, then bottom row. Canvas 1536 by 1024 pixels; each cell 512 by 512. No visible grid.\nAnimation: gentle six-phase head lift and ear swivel with a small tail-tip swish, eyelids open, open, half-closed, closed, half-open, open. The loop must feel continuous and calm. Body remains in right-facing seated pose, planted and registered with identical center position, scale, and foot/talon baseline local y=466 in all six cells. Head angles progress smoothly [0, 2, 4, 2, 0, -1] degrees without changing identity. No walking, no stepping, no pose reset or body expansion.\nComposition: body height around 400 pixels from ear tip to foot baseline, full curled tail within 450 pixels width. Keep whole animal, ears, tail, claws/hooves/talons inside every cell with at least 25 pixels of clear transparent gutter to every edge. Same local feet and body center in every cell; no clipping or overlapping neighbors.\nStyle/medium: retain original detailed painted storybook naturalism, fine believable fur/feathers, warm soft light, exact colors and anatomy. Keep readable silhouettes at small game size.\nBackdrop: genuine alpha transparency everywhere outside each animal. No ground, cast shadow, glow, black/colored background, halo, vignette, scenery, branch, prop, or perch.\nAvoid: labels, text, frame numbers, grids, borders, watermarks, ground shadows, contact shadows, extra animals, duplicated identical frames, changes in species, changing body size, extra legs/wings/tails, human expressions, cropped body parts.",
+      "repairPrompt": "Use case: precise-object-edit\nEdit target: six-frame fox idle sheet.\nTargeted correction: fix sprite-cell spacing and registration ONLY.\nPreserve the same animal identity/anatomy/style/colors and ALL SIX distinct facial/head phases already shown. Keep exact order. EXACT 3 columns by 2 rows on a 1536 by 1024 transparent canvas. Each cell EXACTLY 512 by 512 pixels.\nUniformly shrink each existing animal to fit a safe rectangle of local x=55 to 457 and local y=65 to 455 in EACH cell, with at least 55 transparent pixels below each animal. Same body scale and body center local x=256 throughout. Register the lowest paw/hoof point at local y=455 in EVERY cell.  Keep the animal facing right. The animal body must not become wider/taller between frames. Keep all ears, tail, legs, paws/hooves/talons inside their own cell. No pixels of the animal cross local y=512 or any column boundary.\nBackground: genuine alpha transparency. Clean cutout edges with no brown/black/colored haze, glow, aura, vignette, ground, contactshadow, drop shadow, perch, prop, grid, borders, text, or labels.\nDon't change expression, pose, direction, species, fur/feather patterns, or details except uniformly shrinking and registering the existing frames."
+    },
+    {
+      "file": "public/assets/characters/owl-fluid.png",
+      "frames": 6,
+      "columns": 3,
+      "rows": 2,
+      "rowEdges": [
+        0,
+        0.5,
+        1
+      ],
+      "columnEdges": [
+        0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1
+      ],
+      "prompt": "Use case: identity-preserve\nAsset type: production game sprite sheet, six-frame forest animal idle loop.\nInput image: edit target and exact animal/style reference. Preserve same front-facing tawny woodland owl with round brown-and-cream facial disk, large dark brown eyes, small olive beak, mottled brown/cream plumage, folded wings, visible curled talons and hanging tail feathers. Use only that animal, not the reference's original three duplicate positions.\nPrimary request: replace the three-pose sheet with EXACTLY SIX distinct full-body frames in an EXACT uniform 3-column by 2-row grid. Read left to right across top row, then bottom row. Canvas 1536 by 1024 pixels; each cell 512 by 512. No visible grid.\nAnimation: gentle six-phase small head tilt to the right and return, barely perceptible breathing in breast feathers, eyelids open, open, half-closed, closed, half-open, open. The loop must feel continuous and calm. Body remains in front-facing perched pose as in the reference, planted and registered with identical center position, scale, and foot/talon baseline local y=466 in all six cells. Head angles progress smoothly [0, 2, 4, 2, 0, -1] degrees without changing identity. No walking, no stepping, no pose reset or body expansion.\nComposition: full owl from head top to lower tail around 425 pixels tall, narrow body proportions preserved. Keep whole animal, ears, tail, claws/hooves/talons inside every cell with at least 25 pixels of clear transparent gutter to every edge. Same local feet and body center in every cell; no clipping or overlapping neighbors.\nStyle/medium: retain original detailed painted storybook naturalism, fine believable fur/feathers, warm soft light, exact colors and anatomy. Keep readable silhouettes at small game size.\nBackdrop: genuine alpha transparency everywhere outside each animal. No ground, cast shadow, glow, black/colored background, halo, vignette, scenery, branch, prop, or perch.\nAvoid: labels, text, frame numbers, grids, borders, watermarks, ground shadows, contact shadows, extra animals, duplicated identical frames, changes in species, changing body size, extra legs/wings/tails, human expressions, cropped body parts.",
+      "repairPrompt": "Use case: precise-object-edit\nEdit target: six-frame owl idle sheet.\nTargeted correction: fix sprite-cell spacing and registration ONLY.\nPreserve the same animal identity/anatomy/style/colors and ALL SIX distinct facial/head phases already shown. Keep exact order. EXACT 3 columns by 2 rows on a 1536 by 1024 transparent canvas. Each cell EXACTLY 512 by 512 pixels.\nUniformly shrink each existing animal to fit a safe rectangle of local x=55 to 457 and local y=65 to 455 in EACH cell, with at least 55 transparent pixels below each animal. Same body scale and body center local x=256 throughout. Register the lowest tail-feather tip at local y=455 in EVERY cell. Keep owl front-facing. The animal body must not become wider/taller between frames. Keep all ears, tail, legs, paws/hooves/talons inside their own cell. No pixels of the animal cross local y=512 or any column boundary.\nBackground: genuine alpha transparency. Clean cutout edges with no brown/black/colored haze, glow, aura, vignette, ground, contactshadow, drop shadow, perch, prop, grid, borders, text, or labels.\nDon't change expression, pose, direction, species, fur/feather patterns, or details except uniformly shrinking and registering the existing frames."
+    },
+    {
+      "file": "public/assets/characters/deer-fluid.png",
+      "frames": 6,
+      "columns": 3,
+      "rows": 2,
+      "rowEdges": [
+        0,
+        0.5,
+        1
+      ],
+      "columnEdges": [
+        0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1
+      ],
+      "prompt": "Use case: identity-preserve\nAsset type: production game sprite sheet, six-frame forest animal idle loop.\nInput image: edit target and exact animal/style reference. Preserve same slender antlerless young brown deer facing right in side profile, warm tawny coat, pale belly, white tail underside, long elegant legs and two large ears. Use only that animal, not the reference's original three duplicate positions.\nPrimary request: replace the three-pose sheet with EXACTLY SIX distinct full-body frames in an EXACT uniform 3-column by 2-row grid. Read left to right across top row, then bottom row. Canvas 1536 by 1024 pixels; each cell 512 by 512. No visible grid.\nAnimation: gentle six-phase muzzle lift and return with small ear swivel and tiny tail twitch, eyelids open, open, half-closed, closed, half-open, open. The loop must feel continuous and calm. Body remains in right-facing standing side profile, planted and registered with identical center position, scale, and foot/talon baseline local y=466 in all six cells. Head angles progress smoothly [0, 2, 4, 2, 0, -1] degrees without changing identity. No walking, no stepping, no pose reset or body expansion.\nComposition: same long-legged proportions, body and all legs within 450 pixels width, antlerless head and ears with full height around 390 pixels. Keep whole animal, ears, tail, claws/hooves/talons inside every cell with at least 25 pixels of clear transparent gutter to every edge. Same local feet and body center in every cell; no clipping or overlapping neighbors.\nStyle/medium: retain original detailed painted storybook naturalism, fine believable fur/feathers, warm soft light, exact colors and anatomy. Keep readable silhouettes at small game size.\nBackdrop: genuine alpha transparency everywhere outside each animal. No ground, cast shadow, glow, black/colored background, halo, vignette, scenery, branch, prop, or perch.\nAvoid: labels, text, frame numbers, grids, borders, watermarks, ground shadows, contact shadows, extra animals, duplicated identical frames, changes in species, changing body size, extra legs/wings/tails, human expressions, cropped body parts.",
+      "repairPrompt": "Use case: precise-object-edit\nEdit target: six-frame deer idle sheet.\nTargeted correction: fix sprite-cell spacing and registration ONLY.\nPreserve the same animal identity/anatomy/style/colors and ALL SIX distinct facial/head phases already shown. Keep exact order. EXACT 3 columns by 2 rows on a 1536 by 1024 transparent canvas. Each cell EXACTLY 512 by 512 pixels.\nUniformly shrink each existing animal to fit a safe rectangle of local x=55 to 457 and local y=65 to 455 in EACH cell, with at least 55 transparent pixels below each animal. Same body scale and body center local x=256 throughout. Register the lowest paw/hoof point at local y=455 in EVERY cell.  Keep the animal facing right. The animal body must not become wider/taller between frames. Keep all ears, tail, legs, paws/hooves/talons inside their own cell. No pixels of the animal cross local y=512 or any column boundary.\nBackground: genuine alpha transparency. Clean cutout edges with no brown/black/colored haze, glow, aura, vignette, ground, contactshadow, drop shadow, perch, prop, grid, borders, text, or labels.\nDon't change expression, pose, direction, species, fur/feather patterns, or details except uniformly shrinking and registering the existing frames."
+    },
+    {
+      "file": "public/assets/characters/badger-fluid.png",
+      "frames": 6,
+      "columns": 3,
+      "rows": 2,
+      "rowEdges": [
+        0,
+        0.5,
+        1
+      ],
+      "columnEdges": [
+        0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1
+      ],
+      "prompt": "Use case: identity-preserve\nAsset type: production game sprite sheet, six-frame forest animal idle loop.\nInput image: edit target and exact animal/style reference. Preserve same stocky European badger facing right in side profile, gray salt-and-pepper coat, broad low back, distinct white head and two black eye stripes, short dark legs, pale curved claws, short tapering tail. Use only that animal, not the reference's original three duplicate positions.\nPrimary request: replace the three-pose sheet with EXACTLY SIX distinct full-body frames in an EXACT uniform 3-column by 2-row grid. Read left to right across top row, then bottom row. Canvas 1536 by 1024 pixels; each cell 512 by 512. No visible grid.\nAnimation: gentle six-phase nose lift/sniff and return, slight shoulder breathing and ear twitch, eyelids open, open, half-closed, closed, half-open, open. The loop must feel continuous and calm. Body remains in right-facing low standing side profile, planted and registered with identical center position, scale, and foot/talon baseline local y=466 in all six cells. Head angles progress smoothly [0, 2, 4, 2, 0, -1] degrees without changing identity. No walking, no stepping, no pose reset or body expansion.\nComposition: body and tail within 450 pixels width, same squat proportions, about 250 pixels tall rather than making the badger tall. Keep whole animal, ears, tail, claws/hooves/talons inside every cell with at least 25 pixels of clear transparent gutter to every edge. Same local feet and body center in every cell; no clipping or overlapping neighbors.\nStyle/medium: retain original detailed painted storybook naturalism, fine believable fur/feathers, warm soft light, exact colors and anatomy. Keep readable silhouettes at small game size.\nBackdrop: genuine alpha transparency everywhere outside each animal. No ground, cast shadow, glow, black/colored background, halo, vignette, scenery, branch, prop, or perch.\nAvoid: labels, text, frame numbers, grids, borders, watermarks, ground shadows, contact shadows, extra animals, duplicated identical frames, changes in species, changing body size, extra legs/wings/tails, human expressions, cropped body parts.",
+      "repairPrompt": "Use case: precise-object-edit\nEdit target: six-frame badger idle sheet.\nTargeted correction: fix sprite-cell spacing and registration ONLY.\nPreserve the same animal identity/anatomy/style/colors and ALL SIX distinct facial/head phases already shown. Keep exact order. EXACT 3 columns by 2 rows on a 1536 by 1024 transparent canvas. Each cell EXACTLY 512 by 512 pixels.\nUniformly shrink each existing animal to fit a safe rectangle of local x=55 to 457 and local y=65 to 455 in EACH cell, with at least 55 transparent pixels below each animal. Same body scale and body center local x=256 throughout. Register the lowest paw/hoof point at local y=455 in EVERY cell. The existing second row is too high. It needs the SAME bottom baseline within its row as the first row. Keep the animal facing right. The animal body must not become wider/taller between frames. Keep all ears, tail, legs, paws/hooves/talons inside their own cell. No pixels of the animal cross local y=512 or any column boundary.\nBackground: genuine alpha transparency. Clean cutout edges with no brown/black/colored haze, glow, aura, vignette, ground, contactshadow, drop shadow, perch, prop, grid, borders, text, or labels.\nDon't change expression, pose, direction, species, fur/feather patterns, or details except uniformly shrinking and registering the existing frames."
+    },
+    {
+      "file": "public/assets/characters/hana-gather-fluid.png",
+      "frames": 11,
+      "sourceCells": 12,
+      "omittedCells": [
+        10
+      ],
+      "columns": 4,
+      "rows": 3,
+      "columnEdges": [
+        0,
+        0.28107734806629836,
+        0.5006906077348067,
+        0.7354972375690608,
+        1
+      ],
+      "rowEdges": [
+        0,
+        0.3462246777163904,
+        0.638121546961326,
+        1
+      ],
+      "prompt": "Use case: identity-preserve. Make a denser new gathering animation from the exact woman in reference. Output exactly TWELVE separate full-body poses, equal 4 columns by 3 rows, sequential left to right then down, true transparent background. ONE action begins standing, bends to pick up one potato with her free hand, returns upright, puts potato in wicker basket. Preserve her exact illustrated adult face, honey-blonde braid, red head scarf behind hair, cream floral embroidered blouse, teal skirt, white apron, brown boots, wicker basket on screen LEFT arm. Fixed front three-quarter camera looking toward screen right. Same feet position, scale and body height reference in every cell, but bent poses shorter naturally. Entire bodies inside cells. Layout ideally 2048 wide by1536 high, clear transparent gutters, no grid, text, backdrop, shadows, or extra objects. The 12 poses must be distinct progressive in-betweens: row1: (1) upright relaxed empty free hand; (2) knees slightly bent torso tilts forward10degrees freehand startsdown; (3) knees half bent torso20degrees freehand at knee; (4) deeper crouch torso30degrees freehand shinheight. Row2: (5) lowest crouch hand nearlyground empty; (6) lowest crouch fingers grasp smallpotato; (7) slightly rising knee straightens hand lifts potato6inches; (8) half rising torso straightens hand lifts potato to knee. Row3: (9) nearlystanding handpotato at waist; (10) upright potato hand moves above basket; (11) upright potato placed insidebasket; (12) upright empty freehand returns side as initialpose. Preserve exact costume, face and identity. Basket stays on same elbow at hip, consistent size. Precisely register legs and planted boots to same position within each cell. Favor a clean readable motion sequence over decorative changes.",
+      "integrationNote": "Source cell 10 contains a second basket, so it is omitted. Explicit source boundaries keep hands and boots complete."
+    }
+  ],
+  "runtimeNotes": [
+    "All poses are prepared once. Existing walk, John, and cat art uses brief pose transitions.",
+    "Animation loop durations and gameplay action durations are preserved.",
+    "Baby dance has 32 procedural samples at the original 8/7.6 second loop length."
+  ]
+}

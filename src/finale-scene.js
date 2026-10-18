@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createAnimatedMaterial, cycleFrame, updateAnimatedMap } from './animation.js';
 
 // The film and the family share a fixed composition. Sprites and the screen face
 // the camera, so the HTML player can occupy the screen without a skewed edge.
@@ -25,7 +26,7 @@ export function createFamilyFinale(scene, painted, shadowMap) {
     const object = new THREE.Mesh(geometry, material); group.add(object); return object;
   }
   function person(name, texture, size) {
-    const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, alphaTest: .025 });
+    const material = createAnimatedMaterial({ map: texture, transparent: true, depthWrite: false, alphaTest: .025 });
     materials.push(material);
     const object = new THREE.Sprite(material); object.name = name;
     object.center.set(.5, 0); object.scale.set(size, size, 1); group.add(object); return object;
@@ -62,8 +63,9 @@ export function createFamilyFinale(scene, painted, shadowMap) {
   const hana = person('dancing-hana', painted.sing[2], 3.15);
   const john = person('dancing-john', painted.actions[10], 3.3);
   const percy = person('dancing-percy', painted.cat[5], 1.45);
-  const babyFrames = Array.from({ length: 8 }, (_, index) => {
-    const texture = babyCotFrame(index); textures.push(texture); return texture;
+  const babyFrameCount = 32;
+  const babyFrames = Array.from({ length: babyFrameCount }, (_, index) => {
+    const texture = babyCotFrame(index / babyFrameCount); textures.push(texture); return texture;
   });
   const aldo = person('dancing-aldo-in-cot', babyFrames[0], 3.15);
   aldo.scale.y = 2.46;
@@ -100,7 +102,8 @@ export function createFamilyFinale(scene, painted, shadowMap) {
     const johnY = .07 + (revealTime >= 4 ? Math.max(0, beat) * .12 : Math.sin(approach * Math.PI * 4) * .045);
     place(john, johnX, johnY, adultDepth);
     john.scale.set(3.3, johnHeight, 1);
-    john.material.map = revealTime < .9 ? painted.idle[3] : revealTime < 3.5 || started && danceFrame % 2 === 0 ? painted.actions[10] : painted.idle[3];
+    updateAnimatedMap(john.material, revealTime < .9 ? painted.idle[3] : revealTime < 3.5 || started && danceFrame % 2 === 0 ? painted.actions[10] : painted.idle[3],
+      revealTime < 4 ? revealTime : danceTime, reducedMotion || revealTime >= 4 && !game.dancePlaying);
     john.material.rotation = revealTime >= 4 ? sway * -.07 : -pull * .045 * (1 - returnToDance);
     place(johnShadow, johnX, .065, adultDepth);
 
@@ -126,14 +129,16 @@ export function createFamilyFinale(scene, painted, shadowMap) {
     cord.quaternion.setFromUnitVectors(vertical, otherCorner.normalize());
 
     place(hana, 2.55 - sway * .23, .07 + Math.max(0, -beat) * .11, adultDepth);
-    hana.material.map = started ? painted.sing[[2, 3, 4, 1][danceFrame] + 6] : painted.idle[6];
+    const hanaFrame = reducedMotion ? 2 : cycleFrame(danceTime, 4 / 3.8, painted.singFrameCount);
+    updateAnimatedMap(hana.material, started ? painted.sing[hanaFrame + painted.singFrameCount] : painted.idle[6], danceTime, reducedMotion || !game.dancePlaying);
     hana.material.rotation = sway * .08;
     hana.scale.set(3.15 * (1 + Math.abs(sway) * .025), 3.15, 1);
     place(hanaShadow, 2.55 - sway * .23, .065, adultDepth);
     place(aldo, -.75, .07, cotDepth);
-    aldo.material.map = babyFrames[reducedMotion ? 2 : started ? Math.floor(danceTime * 7.6) % 8 : 0];
+    // More sampled poses preserve the original loop's duration.
+    aldo.material.map = babyFrames[reducedMotion ? babyFrameCount / 4 : started ? cycleFrame(danceTime, 8 / 7.6, babyFrameCount) : 0];
     place(percy, 1.02 + sway * .35, .03 + Math.max(0, beat) * .32, catDepth);
-    percy.material.map = painted.cat[started ? [5, 2, 5, 4][danceFrame] : 2];
+    updateAnimatedMap(percy.material, painted.cat[started ? [5, 2, 5, 4][danceFrame] : 2], danceTime, reducedMotion || !game.dancePlaying);
     percy.material.rotation = sway * -.1;
     percy.scale.set(1.45, 1.45 * (1 - Math.max(0, -beat) * .06), 1);
     place(percyShadow, 1.02 + sway * .35, .065, catDepth);
@@ -157,10 +162,10 @@ export function createFamilyFinale(scene, painted, shadowMap) {
   };
 }
 
-function babyCotFrame(frame) {
-  const canvas = document.createElement('canvas'); canvas.width = 576; canvas.height = 450;
-  const c = canvas.getContext('2d'); c.scale(1.5, 1.5); c.lineCap = 'round'; c.lineJoin = 'round';
-  const phase = frame / 8 * Math.PI * 2;
+function babyCotFrame(position) {
+  const canvas = document.createElement('canvas'); canvas.width = 384; canvas.height = 300;
+  const c = canvas.getContext('2d'); c.lineCap = 'round'; c.lineJoin = 'round';
+  const phase = position * Math.PI * 2;
   const ellipse = (x, y, rx, ry, color, angle = 0) => {
     c.fillStyle = color; c.beginPath(); c.ellipse(x, y, rx, ry, angle, 0, Math.PI * 2); c.fill();
   };

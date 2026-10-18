@@ -11,7 +11,7 @@ function fixture(t, width = 1280, height = 800) {
   globalThis.document = { createElement: () => ({ getContext: () => context }) };
   const scene = new THREE.Scene();
   const frames = length => Array.from({ length }, () => new THREE.Texture());
-  const painted = { sing: frames(12), actions: frames(12), cat: frames(6), idle: frames(9) };
+  const painted = { sing: frames(24), singFrameCount: 12, actions: frames(12), cat: frames(6), idle: frames(9) };
   const finale = createFamilyFinale(scene, painted, new THREE.Texture());
   const camera = new THREE.PerspectiveCamera(35, width / height, .1, 180);
   const distance = Math.max(22, 9.8 / (2 * Math.tan(THREE.MathUtils.degToRad(17.5)) * camera.aspect));
@@ -66,7 +66,7 @@ test('dancing uses the playback clock, and reduced motion immediately gives a st
   game.danceTime = 99; update(true);
   assert.deepEqual(percy.position.toArray(), stillCat.toArray());
   assert.equal(aldo.material.map, stillBaby);
-  assert.equal(scene.getObjectByName('dancing-hana').material.map, painted.sing[10]);
+  assert.equal(scene.getObjectByName('dancing-hana').material.map, painted.sing[painted.singFrameCount + 2]);
 });
 
 test('repeated finale replays reuse the scene and dispose owned resources', t => {
@@ -81,4 +81,39 @@ test('repeated finale replays reuse the scene and dispose owned resources', t =>
   let after = 0; scene.traverse(() => { after++; }); assert.equal(after, objects);
   finale.dispose(); assert.equal(disposed, resources.size);
   assert.equal(scene.getObjectByName('family-dance-finale'), undefined);
+});
+
+test('paused and ended video leaves exact painted poses instead of a frozen double exposure', t => {
+  const { scene, game, update } = fixture(t);
+  game.finaleTime = 4; game.dancePlaying = true;
+  for (const time of [.25, .27, .29]) { game.danceTime = time; update(); }
+  const people = ['dancing-hana', 'dancing-john', 'dancing-percy'].map(name => scene.getObjectByName(name));
+  const uniforms = people.map(person => {
+    const shader = { uniforms: {}, fragmentShader: THREE.ShaderLib.sprite.fragmentShader };
+    person.material.onBeforeCompile(shader);
+    return shader.uniforms;
+  });
+  assert.ok(uniforms.some(value => value.poseWeight.value > 0 && value.poseWeight.value < 1));
+  game.dancePlaying = false; update();
+  for (const [index, person] of people.entries()) {
+    assert.equal(uniforms[index].poseWeight.value, 1);
+    assert.equal(uniforms[index].previousPose.value, person.material.map);
+  }
+});
+
+test('baby dance poses retain character-scale resolution and the original loop duration', t => {
+  const { scene, game, update } = fixture(t);
+  const baby = scene.getObjectByName('dancing-aldo-in-cot');
+  game.finaleTime = 4; game.dancePlaying = true;
+  const frames = new Set();
+  for (let index = 0; index < 32; index++) {
+    game.danceTime = (index + .25) / 32 * (8 / 7.6); update();
+    frames.add(baby.material.map);
+    assert.ok(baby.material.map.image.width >= 384);
+    assert.ok(baby.material.map.image.height >= 300);
+  }
+  assert.equal(frames.size, 32);
+  game.danceTime = 0; update(); const first = baby.material.map;
+  game.danceTime = 8 / 7.6; update();
+  assert.equal(baby.material.map, first);
 });

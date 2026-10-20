@@ -123,7 +123,10 @@ const BADGER = [
 
 // Every event uses quarter-note beats. Measures retain their own length,
 // including optional pickups, rather than assuming a three-beat loop.
-export function arrange(tune, lead = 'violin') {
+// Restoration stages add one restrained part each, cumulatively, over the
+// same harmony. Stage 0 is the original arrangement.
+export function arrange(tune, lead = 'violin', stage = 0) {
+  const support = lead === 'violin' ? 'clarinet' : 'violin';
   const events = [];
   const boundaries = [0];
   let at = 0;
@@ -135,6 +138,16 @@ export function arrange(tune, lead = 'violin') {
       events.push({ at: at + offset, note: chord[offset % chord.length], beats: .72, part: lead === 'violin' ? 'clarinet' : 'violin', level: .045 });
     }
     if (length >= 2) events.push({ at: at + length - 1, note: 60, beats: .12, part: 'tambourine', level: .028 });
+    // 1: a low fifth answers the bass. 2: a held chord tone. 3: a soft chord
+    // tone beneath the measure's first melody note.
+    if (stage >= 1 && length >= 2) events.push({ at: at + length / 2, note: bass + 7, beats: .6, part: 'bass', level: .06, stage: 1 });
+    if (stage >= 2) events.push({ at, note: chord[chord.length - 1], beats: length * .9, part: support, level: .022, stage: 2 });
+    const first = notes.find(([note]) => note !== null);
+    if (stage >= 3 && first) {
+      const below = chord.map(note => note + 12 * Math.round(((first[0] + (tune.octave || 0)) - 4 - note) / 12)).filter(note => note < first[0] + (tune.octave || 0));
+      const offset = notes.slice(0, notes.indexOf(first)).reduce((sum, [, beats]) => sum + beats, 0);
+      if (below.length) events.push({ at: at + offset, note: Math.max(...below), beats: first[1] * .9, part: support, level: .035, stage: 3 });
+    }
     // The melody stays in front. Animal conversations retain their own counterlines.
     if (counter) counter.forEach((note, i) => events.push({ at: at + i * length / counter.length, note, beats: length / counter.length * .8, part: 'violin', level: .025 }));
     let beat = at;
@@ -147,17 +160,23 @@ export function arrange(tune, lead = 'violin') {
   }
   return { events: events.sort((a, b) => a.at - b.at), beat: 60 / tune.tempo, beats: at, boundaries };
 }
-export const SCORES = Object.fromEntries(Object.entries(TUNES).map(([id, tune]) => [id, arrange(tune, id === 'woodland' ? 'clarinet' : 'violin')]));
-export const TITLE_SCORE = arrange({ ...TUNES.growth, octave: 0 }, 'clarinet');
+// Scores are built once. Variants of one tune share an explicit tune id, so the
+// scheduler can tell a restoration stage change from a change of melody.
+const named = (score, tuneId, stage = 0) => Object.freeze({ ...score, tuneId, stage });
+export const SCORE_VARIANTS = Object.fromEntries(Object.entries(TUNES).map(([id, tune]) =>
+  [id, Object.freeze([0, 1, 2, 3].map(stage => named(arrange(tune, id === 'woodland' ? 'clarinet' : 'violin', stage), id, stage)))]));
+export const SCORES = Object.fromEntries(Object.keys(TUNES).map(id => [id, SCORE_VARIANTS[id][0]]));
+export const TITLE_SCORE = named(arrange({ ...TUNES.growth, octave: 0 }, 'clarinet'), 'title');
 export const ANIMAL_SCORES = {
-  fox: arrange({ measures: FOX, tempo: 108 }, 'clarinet'),
-  owl: arrange({ measures: OWL, tempo: 72 }, 'clarinet'),
-  deer: arrange({ measures: DEER, tempo: 84 }),
-  badger: arrange({ measures: BADGER, tempo: 76 }, 'clarinet'),
+  fox: named(arrange({ measures: FOX, tempo: 108 }, 'clarinet'), 'fox'),
+  owl: named(arrange({ measures: OWL, tempo: 72 }, 'clarinet'), 'owl'),
+  deer: named(arrange({ measures: DEER, tempo: 84 }), 'deer'),
+  badger: named(arrange({ measures: BADGER, tempo: 76 }, 'clarinet'), 'badger'),
 };
+export const restorationStage = (game) => Math.min(3, game.restoredSites?.length || 0);
 export function scoreFor(game) {
   if (ANIMAL_SCORES[game.conversation]) return ANIMAL_SCORES[game.conversation];
   if (game.phase === 'intro') return TITLE_SCORE;
-  if (game.scene === 'house') return SCORES.growth;
-  return SCORES[musicZoneAt(game.player)];
+  const tune = game.scene === 'house' ? 'growth' : musicZoneAt(game.player);
+  return SCORE_VARIANTS[tune][restorationStage(game)];
 }

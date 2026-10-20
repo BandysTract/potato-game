@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SEQUENCES, createSequenceGame } from '../src/sequences.js';
-import { chooseSong, finishConversation, getNearby, step } from '../src/game.js';
+import { answerQuiz, chooseSong, finishConversation, getNearby, step } from '../src/game.js';
 import { BOUNDS, CREATURES, FAIRIES, HOME, HOUSE_BOUNDS, HOUSE_OBSTACLES, HOUSE_TARGETS, OBSTACLES, POTATOES, SONGS, SONG_SITES } from '../src/data.js';
-import { DIALOGUES } from '../src/dialogues.js';
+import { QUIZZES } from '../src/quizzes.js';
 
 function interact(game) { step(game, { interact: true }, 0.05); }
 function completeAction(game) {
@@ -19,7 +19,7 @@ function allSupplies(game) {
 }
 
 test('the bounded scene catalog starts fresh games and rejects unknown choices', () => {
-  assert.equal(SEQUENCES.length, 20);
+  assert.equal(SEQUENCES.length, 23);
   assert.equal(new Set(SEQUENCES.map(({ id }) => id)).size, SEQUENCES.length);
   for (const invalid of ['unknown', 'fox:3', 'fox:-1', 'fox:01', 'garden-unknown', null, undefined]) assert.equal(createSequenceGame(invalid), null);
   const game = createSequenceGame('start', 'en');
@@ -88,18 +88,32 @@ test('all garden entries have the real prerequisites and can restore the garden'
   }
 });
 
-test('every animal question opens at the requested index and continues normally', () => {
+test('every animal question opens at the requested index without completion and continues normally', () => {
   let count = 0;
   for (const creature of CREATURES) {
     const sequence = SEQUENCES.find((entry) => entry.id === creature.id);
-    assert.equal(sequence.variants.length, DIALOGUES[creature.id].length);
+    assert.equal(sequence.variants.length, QUIZZES[creature.id].length);
+    assert.equal(sequence.group, 'Forest quizzes');
     sequence.variants.forEach((variant, index) => {
+      const quiz = QUIZZES[creature.id][index];
+      assert.deepEqual(variant.label, quiz.title, 'Variant labels come from quiz titles.');
       const game = createSequenceGame(variant.id);
       assert.equal(game.conversation, creature.id);
       assert.equal(game.conversationIndex, index);
+      assert.deepEqual(game.quizSession, { quizId: quiz.id, answerId: null });
+      assert.deepEqual(game.quizCompleted, [], 'A prepared quiz must not award completion.');
+      assert.deepEqual(game.talked, []);
       assert.equal(getNearby(game)?.id, creature.id);
       finishConversation(game);
+      assert.deepEqual(game.talked, [], 'An unanswered prepared quiz stays unvisited.');
+      step(game, {}, 0.05);
+      interact(game);
+      assert.equal(game.conversationIndex, index, 'Reopening presents the same question.');
+      assert.equal(answerQuiz(game, quiz.correctOptionId, quiz.id), true);
+      finishConversation(game);
       assert.deepEqual(game.talked, [creature.id]);
+      assert.deepEqual(game.quizCompleted, [quiz.id]);
+      step(game, {}, 0.05);
       interact(game);
       assert.equal(game.conversationIndex, (index + 1) % sequence.variants.length);
       count += 1;

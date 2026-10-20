@@ -544,6 +544,59 @@ h1 { position: relative; margin: 0; font-family: var(--serif); font-size: clamp(
 .animal-conversation .choice-invitation { margin: 8px 0 0; }
 .animal-conversation .dialogue-choice { margin-top: 6px; padding: 10px 35px 10px 12px; }
 .animal-conversation .dialogue-result > .button { margin-top: 12px; }
+/* Animal quizzes keep the premise above the locked answers and their result. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.quiz-title { margin: 0 0 4px; font-family: var(--serif); font-size: 17px; font-style: italic; color: #687454; }
+.quiz-premise { margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-family: var(--serif); font-size: 17px; line-height: 1.45; color: #2c4434; }
+.quiz-option { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-right: 14px; }
+.quiz-option > span:first-child { flex: 1; }
+.quiz-tag { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6b785b; }
+.quiz-option:disabled { cursor: default; opacity: 1; color: #59665a; background: #f2f1e6; border-style: dashed; }
+.quiz-option.is-chosen:disabled { border-style: solid; border-color: #a58f6b; background: #f4ecdb; color: var(--ink); }
+.quiz-option.is-correct:disabled { border-style: solid; border-color: #6f9a76; background: #e3eedd; color: var(--ink); }
+.quiz-option.is-correct .quiz-tag { color: #3f6c48; }
+.quiz-result { margin-top: 10px; }
+.quiz-verdict { margin: 0 0 4px; font-family: var(--serif); font-size: 22px; font-weight: 400; color: var(--ink); }
+.quiz-verdict:focus { outline: none; }
+.quiz-feedback, .quiz-explanation { margin: 6px 0 0; font-size: 15px; line-height: 1.5; color: #2c4434; }
+.quiz-explanation { padding: 10px 12px; border-radius: 6px; background: #e9eddc; }
+.quiz-about { margin-top: 10px; font-size: 14px; }
+.quiz-about summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; color: #4f6553; }
+.quiz-about summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.quiz-source { margin: 4px 0 10px; }
+.quiz-source p { margin: 4px 0; line-height: 1.45; }
+.quiz-links { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.quiz-links a { color: #2f5f4a; }
+.quiz-result > .button { width: 100%; margin-top: 12px; }
+@media (max-width: 700px) {
+  .quiz-premise, .quiz-title { font-size: 16px; }
+  .quiz-option { flex-direction: column; gap: 2px; }
+}
+/* The folded map keeps markers and labels above its drawn ridge, trees, and creases. */
+.map-ridge { fill: #d9dcc4; stroke: #b4b998; stroke-width: .18; }
+.map-tree { fill: #b8c6a2; opacity: .85; }
+.map-fold { stroke: #b9b49a; stroke-width: .16; stroke-dasharray: .6 .4; opacity: .55; fill: none; }
+.trail-map { box-shadow: inset 0 0 0 1px #fffaf0, 0 6px 16px #3a4a3a1f; background: linear-gradient(90deg, #00000008 0 1px, transparent 1px 33.2%, #00000010 33.33%, transparent 33.6% 66.5%, #00000010 66.66%, transparent 67%), linear-gradient(#f0ecd9, #ebe5cd); }
+.ending-panel .ending-joke { font-family: var(--serif); font-size: 16px; font-style: italic; color: #4d5f45; margin: -4px 0 14px; }
+.guidance-toggle [data-guidance-state] { font-weight: 400; }
+/* Saving status: quiet text in panels, and a persistent line on the play surface. */
+.intro-actions { display: grid; gap: 10px; }
+.intro-actions .button { width: 100%; }
+.save-status { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: #4f5f50; }
+.save-status:empty { display: none; }
+.save-banner { position: absolute; left: 50%; bottom: 66px; transform: translateX(-50%); width: max-content; max-width: min(560px, calc(100% - 32px)); margin: 0; padding: 7px 12px; border-radius: 6px; background: #f7f1e5ee; border: 1px solid #d7c9a5; color: #4a4532; font-size: 12px; line-height: 1.4; text-align: center; pointer-events: none; }
+.save-banner:empty { padding: 0; border: 0; background: none; }
+.confirm-dialog { width: min(460px, 100%); }
+.confirm-dialog h2 { font-size: 22px; line-height: 1.35; margin: 6px 0 16px; }
+.confirm-actions { display: grid; gap: 10px; }
+.confirm-actions .button, .selector-return { width: 100%; }
+.selector-return { margin: 10px 0 4px; }
+@media (max-width: 700px) { .save-banner { bottom: 150px; } }
+/* Sound start status sits under the in-play Sound control, apart from event toasts. */
+.sound-control { position: relative; display: inline-flex; }
+.play-sound-status { position: absolute; top: calc(100% + 6px); right: 0; width: max-content; max-width: 220px; margin: 0; padding: 6px 9px; border-radius: 6px; background: #f8f3e8f2; border: 1px solid #c8ceba; color: var(--ink); font-size: 11px; line-height: 1.35; text-align: right; pointer-events: none; }
+.play-sound-status:empty { padding: 0; border: 0; background: none; }
+[data-overlay='supper'] { background: transparent; backdrop-filter: none; align-items: flex-end; padding: 12px; }
 [data-overlay='endingChoice'] { background: transparent; backdrop-filter: none; align-items: flex-end; padding: 12px; }
 .supper-choice { width: min(620px, 100%); max-height: 48vh; padding: 18px 24px; overflow-y: auto; }
 .supper-choice h2 { font-size: 26px; }

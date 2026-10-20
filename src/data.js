@@ -24,6 +24,12 @@ export const SONG_SITES = [
   { id: 'meadow', x: 16, z: -27, name: 'Upper meadow', songId: 'growth', potatoId: 'potato-5', learnedClue: 'The plants need the growth song. Try it here.', clue: 'The plants need the growth song. Learn it from Jitřenka.', message: 'The meadow plants revive. Their potato is ready to gather.' },
   { id: 'cottage', x: 6, z: 18, name: 'Cottage garden', songId: 'rain', learnedClue: 'The dry garden needs the rain song. Try it here.', clue: 'The dry garden needs the rain song. Learn it from Rusalka.', message: 'Gentle rain restores the cottage garden. Your family is waiting inside.' },
 ];
+// Optional scenic spots for singing a learned song again. They award nothing.
+export const PRACTICE_SPOTS = [
+  { id: 'practice-woodland', songId: 'woodland', x: -20.5, z: -3, name: 'Birch hollow', response: 'bird' },
+  { id: 'practice-growth', songId: 'growth', x: -2.5, z: -32.8, name: 'Meadow rise', response: 'animal' },
+  { id: 'practice-rain', songId: 'rain', x: 25.6, z: -7.5, name: 'Brook bend', response: 'reflection' },
+];
 export const HOUSE_CAT = { id: 'percy', x: 2.8, z: -3.1, name: 'Percy' };
 export const LANDMARKS = [HOME,
   { id: 'grove', x: -23, z: -17, name: 'Birch grove' },

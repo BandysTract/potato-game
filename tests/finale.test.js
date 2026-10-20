@@ -82,12 +82,12 @@ function finale() {
   const window = { location: { origin: 'http://127.0.0.1:4173' } };
   const controller = runInNewContext(`${source}\ncreateFinale(container, onAction, onPlayback);`, {
     window, document: { head, createElement: tag => new Element(tag) }, container,
-    onAction: action => actions.push(action), onPlayback: value => playback.push(value), AbortController,
+    onAction: (action, value) => actions.push(value === undefined ? action : `${action}:${value}`), onPlayback: value => playback.push(value), AbortController,
     setTimeout(callback, delay) { timers.set(++timerId, { callback, due: now + delay }); return timerId; },
     clearTimeout(id) { timers.delete(id); },
   });
   const game = { phase: 'won', ending: 'dance', language: 'en' };
-  const view = { overlay: 'dance', focused: true, sound: false };
+  const view = { overlay: 'dance', focused: true, soundWanted: false };
   const bounds = { visible: true, left: 10, top: 20, width: 640, height: 360 };
   return {
     controller, container, head, players, playback, actions, game, view, bounds,
@@ -220,14 +220,14 @@ test('explicit mute is honored on readiness, changes without reloading, and surv
     const player = await ready(app);
     assert.deepEqual(player.calls.slice(0, 2), ['mute', 'play']);
     assert.equal(app.find('[data-finale-sound]').attributes['aria-pressed'], 'false');
-    app.view.sound = true; app.update();
+    app.view.soundWanted = true; app.update();
     assert.equal(player.calls.at(-1), 'unMute');
-    app.view.sound = false; app.update();
+    app.view.soundWanted = false; app.update();
     assert.equal(player.calls.at(-1), 'mute');
     app.find('[data-finale-sound]').click();
     app.find('[data-finale-admin]').click();
     app.find('[data-finale-restart]').click();
-    assert.deepEqual(app.actions, ['sound', 'admin', 'restart']);
+    assert.deepEqual(app.actions, ['sound:video', 'admin', 'restart'], 'The video control names its own output.');
     assert.equal(player.calls.at(-1), 'mute', 'Buttons delegate to the app instead of overriding its sound preference.');
     assert.equal(app.players.length, 1);
   } finally { app.controller.dispose(); }

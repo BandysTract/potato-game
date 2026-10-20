@@ -1,96 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { runInNewContext } from 'node:vm';
 import * as gameModel from '../src/game.js';
 import { createMoment, advanceMoment } from '../src/moments.js';
 import { HOUSE_ACTIVITIES } from '../src/dialogues.js';
 import { regionAt, CREATURES, FAIRIES, HOME, HOUSE_START, HOUSE_TARGETS, POTATOES, SONGS, SONG_SITES } from '../src/data.js';
 import { t } from '../src/i18n.js';
 import { createSequenceGame } from '../src/sequences.js';
+import { QUIZZES, findQuiz } from '../src/quizzes.js';
+import { entryPoint, trusted, passSupper, plain, quizAnswer, walkAppTo, finishSongForApp, finishActionForApp, jumpTo } from './entry-harness.js';
 
-// Run the real entry point with browser surfaces replaced, rather than supplying
-// the overlay policy ourselves. Real browser permission and layout are separate checks.
-const source = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8')
-  .replace(/^import .*;\n/gm, '').replaceAll('import.meta.hot', 'hot');
-
-class Target {
-  listeners = new Map();
-  addEventListener(name, handler, capture = false) {
-    const entries = this.listeners.get(name) || [];
-    entries.push({ handler, capture });
-    this.listeners.set(name, entries);
-  }
-  removeEventListener(name, handler) {
-    this.listeners.set(name, (this.listeners.get(name) || []).filter((entry) => entry.handler !== handler));
-  }
-  fire(type, values = {}) {
-    const event = { type, isTrusted: true, repeat: false, target: { closest: () => null, matches: () => false }, preventDefault() { this.prevented = true; }, ...values };
-    const entries = [...this.listeners.get(type) || []].sort((a, b) => Number(Boolean(b.capture)) - Number(Boolean(a.capture)));
-    entries.forEach(({ handler }) => handler(event));
-    return event;
-  }
-}
-
-function entryPoint({ soundInitThrows = false, reducedMotion = false, random = Math.random, ending = null } = {}) {
-  const window = new Target();
-  const document = new Target();
-  const frames = new Map();
-  const renderer = new Target();
-  let action;
-  let view;
-  let game;
-  let dispose;
-  let frameId = 0;
-  let changes;
-  let sampleStatus;
-  const node = () => ({ setAttribute() {}, append() {}, focus() {}, replaceChildren() {} });
-  const root = node();
-  const motionPreference = { matches: reducedMotion };
-  window.matchMedia = () => motionPreference;
-  document.hidden = false;
-  document.focused = true;
-  document.hasFocus = () => document.focused;
-  document.documentElement = node();
-  document.querySelector = (selector) => selector === '#ui' ? root : node();
-  document.createElement = node;
-  const audio = {
-    enabled: false, paused: true, disposed: false, enableCalls: [], ticks: [], soundInitThrows,
-    setEnabled(next) {
-      this.enableCalls.push(next);
-      if (next && this.soundInitThrows) throw new Error('Audio initialization failed');
-      if (next && this.delayEnable) return false;
-      this.enabled = next;
-      changes(next);
-      return next;
-    },
-    completeEnable() { this.enabled = true; changes(true); },
-    failPendingSamples() { sampleStatus('fallback'); },
-    setPaused(next) { this.paused = next; },
-    tick(current) { this.ticks.push({ phase: current.phase, paused: this.paused }); },
-    collect() {}, finish() {}, dispose() { this.disposed = true; },
-  };
-  const finale = { playbackTime: null, getPlaybackTime() { return this.playbackTime; }, update() {}, pause() {}, dispose() {} };
-  const worldTimes = [];
-  runInNewContext(source, {
-    ...gameModel, createMoment, advanceMoment, HOUSE_ACTIVITIES, createGame(language) { return { ...gameModel.createGame(language, random), ending }; }, createSequenceGame, t, regionAt, SONGS, SONG_SITES, window, document,
-    createAudio(onChange, onSamples) { changes = onChange; sampleStatus = onSamples; return audio; },
-    createUI(_root, onAction) { action = onAction; return { update(currentGame, currentView) { game = currentGame; view = currentView; }, dispose() {} }; },
-    createFinale() { return finale; },
-    createWorld() { return { renderer: { domElement: renderer }, update(game) { worldTimes.push(game.danceTime); }, resize() {}, dispose() {} }; },
-    requestAnimationFrame(callback) { frames.set(++frameId, callback); return frameId; },
-    cancelAnimationFrame(id) { frames.delete(id); },
-    hot: { dispose(callback) { dispose = callback; } },
-    console,
-  });
-  return {
-    window, document, audio, renderer, action, finale, worldTimes,
-    setReducedMotion(next) { motionPreference.matches = next; },
-    get view() { return view; }, get game() { return game; },
-    frame(time) { const [id, callback] = frames.entries().next().value; frames.delete(id); callback(time); },
-    dispose() { dispose(); },
-  };
-}
 
 test('a title interaction starts sound without starting gameplay, and help/map preserve the title and mute', () => {
   // Rejects silencing the intro entirely, ticking walking music under its guides,
@@ -125,7 +43,7 @@ test('a title interaction starts sound without starting gameplay, and help/map p
     app.window.fire('click');
     app.window.fire('keydown', { key: 'h', code: 'KeyH' });
     app.action('close');
-    app.action('start');
+    app.action('newWalk');
     assert.equal(app.game.phase, 'playing');
     assert.equal(app.view.overlay, null);
     assert.equal(app.view.sound, false);
@@ -154,13 +72,13 @@ test('eligible trusted title gestures keep their intended actions and leave the 
   try {
     app.window.fire('click', { target: { closest: () => ({ dataset: { action: 'sound' } }) } });
     assert.deepEqual(app.audio.enableCalls, []);
-    app.action('sound');
+    app.action('sound', undefined, trusted);
     assert.equal(app.view.sound, true);
     assert.equal(app.game.phase, 'intro');
     app.action('language', 'en');
     assert.equal(app.game.language, 'en');
     assert.equal(app.view.sound, true);
-    app.action('start');
+    app.action('newWalk', undefined, trusted);
     assert.deepEqual(app.audio.enableCalls, [true], 'Start must keep an already enabled context.');
   } finally { app.dispose(); }
 });
@@ -199,7 +117,7 @@ test('delayed sample failure stays truthful after mute or pause, in both languag
   for (const muted of [true, false]) {
     const app = entryPoint();
     try {
-      app.action('start');
+      app.action('newWalk', undefined, trusted);
       assert.equal(app.view.sound, true);
       if (muted) app.action('sound');
       else app.action('pause');
@@ -220,7 +138,7 @@ test('a sound initialization error reaches the localized title status and succes
     const app = entryPoint({ soundInitThrows: true });
     try {
       assert.equal(app.view.soundError || '', '', 'The title status must begin empty.');
-      app.action('sound');
+      app.action('sound', undefined, trusted);
       assert.equal(app.game.phase, 'intro');
       assert.equal(app.view.overlay, 'intro');
       assert.equal(app.view.sound, false);
@@ -228,17 +146,20 @@ test('a sound initialization error reaches the localized title status and succes
       app.action('language', 'en');
       assert.equal(app.view.soundError, 'Sound is unavailable. You can keep exploring without it.', 'The visible title error must follow the selected language.');
       if (retryDuringPlay) {
-        app.action('start');
+        const calls = app.audio.enableCalls.length;
+        app.action('newWalk', undefined, trusted);
+        assert.equal(app.audio.enableCalls.length, calls, 'No automatic retry after an unavailable result.');
         assert.equal(app.game.phase, 'playing');
-        assert.equal(app.game.message, 'Sound is unavailable. You can keep exploring without it.');
-        assert.ok(app.game.messageTime > 0, 'The fixture must still contain the pending gameplay toast before retry.');
+        assert.equal(app.view.soundError, 'Sound is unavailable. You can keep exploring without it.', 'The in-play sound status keeps the error.');
+        assert.notEqual(app.game.message, app.view.soundError, 'Sound status stays out of the shared event toast.');
       }
       app.audio.soundInitThrows = false;
       app.audio.delayEnable = delayedEnable;
-      app.action('sound');
+      app.action('sound', undefined, trusted);
       if (delayedEnable) {
         assert.equal(app.view.sound, false);
-        assert.equal(app.view.soundError, 'Sound is unavailable. You can keep exploring without it.', 'A suspended retry must keep its error until audio actually starts.');
+        assert.equal(app.view.soundState, 'waiting');
+        assert.equal(app.view.soundError, 'Sound is waiting to start.', 'A suspended retry reports waiting, not playback.');
         app.audio.completeEnable();
       }
       assert.equal(app.view.sound, true, 'A failed initialization must leave the sound control usable.');
@@ -246,7 +167,7 @@ test('a sound initialization error reaches the localized title status and succes
       assert.equal(app.game.message, '', 'Successful retry must also clear an existing or future gameplay error toast.');
       assert.equal(app.game.messageKey, '');
       assert.equal(app.game.messageTime, 0);
-      if (!retryDuringPlay) app.action('start');
+      if (!retryDuringPlay) app.action('newWalk');
       app.action('language', 'cs');
       app.frame(0);
       assert.equal(app.game.phase, 'playing');
@@ -259,25 +180,6 @@ test('a sound initialization error reaches the localized title status and succes
 
 // Reach the same household state the player does. Inventory and house progress
 // are produced by the game model, never injected into a ready-made fixture.
-function walkAppTo(app, target) {
-  for (let frame = 0; frame < 1500; frame++) {
-    const dx = target.x - app.game.player.x;
-    const dz = target.z - app.game.player.z;
-    if (Math.hypot(dx, dz) < 0.12) return;
-    gameModel.step(app.game, { x: (dx - dz) * Math.SQRT1_2, y: (dx + dz) * Math.SQRT1_2 }, Math.min(0.05, Math.hypot(dx, dz) / 5));
-  }
-  assert.fail(`The app fixture couldn’t reach ${target.id || 'waypoint'}.`);
-}
-
-function finishSongForApp(app) {
-  for (let frame = 0; app.game.activeSong && frame < 500; frame++) gameModel.step(app.game, {}, 0.05);
-  assert.equal(app.game.activeSong, null, 'The complete song must finish within 25 seconds.');
-}
-
-function finishActionForApp(app) {
-  for (let frame = 0; app.game.actionAnimation && frame < 100; frame++) gameModel.step(app.game, {}, 0.05);
-  assert.equal(app.game.actionAnimation, null, 'The timed action must finish within 5 seconds.');
-}
 
 function gatherForApp(app) {
   for (const [index, potato] of POTATOES.entries()) {
@@ -342,7 +244,7 @@ test('the song picker preserves its site across language changes and Escape canc
   const press = () => { app.window.fire('keydown', { key: 'e', code: 'KeyE' }); frame(); };
   const release = () => { app.window.fire('keyup', { key: 'e', code: 'KeyE' }); frame(); };
   try {
-    app.action('start');
+    app.action('newWalk');
     app.frame(0);
     walkAppTo(app, FAIRIES[0]);
     press();
@@ -382,7 +284,7 @@ test('house progress survives pause, map, help, language, and a cleared held int
   const press = () => { app.window.fire('keydown', { key: 'e', code: 'KeyE' }); frame(); };
   const release = () => { app.window.fire('keyup', { key: 'e', code: 'KeyE' }); frame(); };
   try {
-    app.action('start');
+    app.action('newWalk');
     assert.ok(Object.values(app.game.dialogueNext).every(index => index === 0));
     frame();
     gatherForApp(app);
@@ -430,6 +332,10 @@ test('house progress survives pause, map, help, language, and a cleared held int
       if (index >= 2) { finishActionForApp(app); frame(); }
     }
     assert.equal(app.game.phase, 'won');
+    assert.equal(app.view.overlay, 'supper', 'Serving shows the settled supper first.');
+    for (let count = 0; count < 20; count++) frame();
+    assert.equal(app.view.overlay, 'supper', 'The 1.6-second supper must not end early.');
+    for (let count = 0; count < 14; count++) frame();
     assert.equal(app.view.overlay, 'reveal', 'The ending card waits while Hana transforms.');
     app.window.fire('keydown', { key: 'Escape', code: 'Escape' });
     app.action('restart');
@@ -441,6 +347,8 @@ test('house progress survives pause, map, help, language, and a cleared held int
     assert.equal(app.view.overlay, 'win');
     assert.equal(app.view.sound, false, 'The family chapter and reveal preserve mute.');
     app.action('restart');
+    assert.equal(app.view.overlay, 'confirmWalk', 'Walk again asks before replacing an unsaved or study walk.');
+    app.action('confirmWalk');
     assert.equal(app.game.phase, 'playing');
     assert.equal(app.game.scene, 'outdoors');
     assert.equal(app.game.houseStep, 0);
@@ -456,12 +364,12 @@ test('house progress survives pause, map, help, language, and a cleared held int
   } finally { app.dispose(); }
 });
 
-test('the entry point keeps the selected animal question and reply through language and focus changes', () => {
+test('the entry point keeps the selected quiz and its answer through language and focus changes', () => {
   const app = entryPoint({ ending: 'goddess', random: () => 0.9 });
   let time = 0;
   const frame = () => app.frame(time += 50);
   try {
-    app.action('start');
+    app.action('newWalk');
     frame();
     walkAppTo(app, { x: -7, z: 5 });
     walkAppTo(app, CREATURES[0]);
@@ -470,19 +378,26 @@ test('the entry point keeps the selected animal question and reply through langu
     assert.equal(app.view.overlay, 'dialogue');
     assert.equal(app.view.dialogue.creatureId, 'fox');
     assert.equal(app.view.dialogue.index, 2, 'The view must receive the game’s selected question.');
+    assert.deepEqual(plain(app.view.dialogue.quiz), { quizId: QUIZZES.fox[2].id, answerId: null });
     app.action('dialogueChoice', 1);
+    assert.equal(app.view.dialogue.quiz.answerId, null, 'Family reply indices must not answer a quiz.');
+    const chosen = quizAnswer(app, false);
+    assert.equal(app.view.dialogue.quiz.answerId, chosen);
     const before = structuredClone(app.game.dialogueNext);
     app.action('language', 'en');
-    assert.equal(app.view.dialogue.choice, 1);
+    assert.equal(app.view.dialogue.quiz.answerId, chosen);
     assert.equal(app.view.dialogue.index, 2);
     app.window.fire('blur');
     for (let count = 0; count < 20; count++) frame();
     app.window.fire('focus');
-    assert.equal(app.view.dialogue.choice, 1);
+    assert.equal(app.view.dialogue.quiz.answerId, chosen);
     assert.equal(app.view.dialogue.index, 2);
     assert.deepEqual(app.game.dialogueNext, before);
+    quizAnswer(app, true);
+    assert.equal(app.view.dialogue.quiz.answerId, chosen, 'A second answer must not replace the first.');
     app.action('dialogueFinish');
     assert.equal(app.game.dialogueNext.fox, 0);
+    assert.deepEqual(plain(app.game.quizCompleted), [QUIZZES.fox[2].id]);
     app.action('dialogueFinish');
     assert.equal(app.game.dialogueNext.fox, 0, 'A duplicate close action must not advance twice.');
     app.action('pause');
@@ -492,15 +407,53 @@ test('the entry point keeps the selected animal question and reply through langu
     app.window.fire('keydown', { key: 'e', code: 'KeyE' });
     frame();
     assert.equal(app.view.dialogue.index, 0);
-    assert.equal(app.view.dialogue.choice, null, 'The next question must begin with both choices available.');
-    app.action('dialogueFinish');
+    assert.equal(app.view.dialogue.quiz.answerId, null, 'The next question must begin unanswered.');
+    app.window.fire('keydown', { key: 'Escape', code: 'Escape' });
+    assert.equal(app.view.overlay, null);
+    assert.equal(app.game.dialogueNext.fox, 0, 'Escape before answering keeps the question.');
+    assert.deepEqual(plain(app.game.quizCompleted), [QUIZZES.fox[2].id]);
+  } finally { app.dispose(); }
+});
+
+test('quiz answers ignore stale, forged, and other-panel events at the entry point', () => {
+  const app = entryPoint();
+  try {
+    app.action('admin'); app.action('jump', 'owl:1');
+    const quiz = QUIZZES.owl[1];
+    app.action('quizAnswer', { quizId: QUIZZES.fox[0].id, optionId: 'switch' });
+    app.action('quizAnswer', { quizId: quiz.id, optionId: 'switch' });
+    app.action('quizAnswer', { optionId: quiz.correctOptionId });
+    app.action('quizAnswer');
+    assert.equal(app.game.quizSession.answerId, null);
+    app.action('admin');
+    assert.equal(app.view.overlay, 'admin');
+    app.action('quizAnswer', { quizId: quiz.id, optionId: quiz.correctOptionId });
+    assert.equal(app.game.quizSession.answerId, null, 'Scene select must not answer through the quiz.');
+    app.action('close');
+    assert.equal(app.view.overlay, 'dialogue');
+    app.window.fire('blur');
+    for (let time = 0; time < 1000; time += 100) app.frame(time);
+    app.window.fire('focus');
+    assert.equal(app.view.overlay, 'dialogue', 'Focus loss keeps the quiz open.');
+    assert.equal(app.game.quizSession.quizId, quiz.id);
+    assert.equal(app.game.quizSession.answerId, null);
+    const inventory = JSON.stringify([app.game.potatoes, app.game.tears, app.game.learnedSongs, app.game.restoredSites]);
+    app.action('quizAnswer', { quizId: quiz.id, optionId: quiz.correctOptionId });
+    app.action('quizAnswer', { quizId: quiz.id, optionId: quiz.options[0].id });
+    assert.equal(app.game.quizSession.answerId, quiz.correctOptionId);
+    app.action('dialogueFinish'); app.action('dialogueFinish');
+    assert.deepEqual(plain(app.game.quizCompleted), [quiz.id]);
+    assert.equal(app.game.dialogueNext.owl, 2);
+    assert.equal(JSON.stringify([app.game.potatoes, app.game.tears, app.game.learnedSongs, app.game.restoredSites]), inventory);
+    app.action('quizAnswer', { quizId: quiz.id, optionId: quiz.correctOptionId });
+    assert.equal(app.game.quizSession, null, 'A late event after close has no effect.');
   } finally { app.dispose(); }
 });
 
 test('reduced motion shows the final still reward without an animation wait', () => {
   const app = entryPoint({ reducedMotion: true, ending: 'goddess' });
   try {
-    app.action('start');
+    app.action('newWalk');
     app.frame(0);
     gatherForApp(app);
     app.window.fire('keydown', { key: 'e', code: 'KeyE' });
@@ -513,7 +466,7 @@ test('reduced motion shows the final still reward without an animation wait', ()
       else finishActionForApp(app);
     }
     app.frame(100);
-    assert.equal(app.game.phase, 'won');
+    passSupper(app);
     assert.equal(app.view.overlay, 'win');
   } finally { app.dispose(); }
 });
@@ -522,7 +475,7 @@ test('reduced motion shows the final still reward without an animation wait', ()
 test('reduced motion changed after loading is honored before dinner is served', () => {
   const app = entryPoint({ ending: 'goddess' });
   try {
-    app.action('start');
+    app.action('newWalk');
     app.frame(0);
     gatherForApp(app);
     app.window.fire('keydown', { key: 'e', code: 'KeyE' });
@@ -536,7 +489,7 @@ test('reduced motion changed after loading is honored before dinner is served', 
       else finishActionForApp(app);
     }
     app.frame(100);
-    assert.equal(app.game.phase, 'won');
+    passSupper(app);
     assert.equal(app.view.overlay, 'win', 'The current motion preference must determine whether the reveal waits.');
   } finally { app.dispose(); }
 });
@@ -544,7 +497,7 @@ test('reduced motion changed after loading is honored before dinner is served', 
 test('enabling reduced motion during the reveal immediately opens the still ending', () => {
   const app = entryPoint({ ending: 'goddess' });
   try {
-    app.action('start');
+    app.action('newWalk');
     app.frame(0);
     gatherForApp(app);
     app.window.fire('keydown', { key: 'e', code: 'KeyE' });
@@ -557,6 +510,7 @@ test('enabling reduced motion during the reveal immediately opens the still endi
       else finishActionForApp(app);
     }
     app.frame(100);
+    passSupper(app);
     assert.equal(app.view.overlay, 'reveal');
     app.setReducedMotion(true);
     app.frame(150);
@@ -567,7 +521,7 @@ test('enabling reduced motion during the reveal immediately opens the still endi
 test('held E cannot reopen a song panel after Escape clears input', () => {
   const app = entryPoint();
   try {
-    app.action('start'); Object.assign(app.game.player, SONG_SITES[0]);
+    app.action('newWalk'); Object.assign(app.game.player, SONG_SITES[0]);
     app.frame(0); app.window.fire('keydown', { code: 'KeyE' }); app.frame(16);
     assert.equal(app.view.overlay, 'songs');
     app.window.fire('keydown', { code: 'Escape' });
@@ -582,7 +536,7 @@ test('held E cannot reopen a song panel after Escape clears input', () => {
 test('releasing and pressing E between frames starts the next dinner step', () => {
   const app = entryPoint();
   try {
-    app.action('start'); app.game.scene = 'house'; app.game.houseStep = 3;
+    app.action('newWalk'); app.game.scene = 'house'; app.game.houseStep = 3;
     Object.assign(app.game.player, HOUSE_TARGETS.find(target => target.id === 'cook'));
     app.frame(0); app.game.interactionHeld = true;
     app.window.fire('keyup', { code: 'KeyE' });
@@ -646,16 +600,18 @@ test('scene selector restores nested panels and selected replies, and clears rep
     assert.equal(app.view.overlay, 'intro');
     app.action('admin');
     app.action('jump', 'fox:2');
-    app.action('dialogueChoice', 1);
+    const chosen = quizAnswer(app, false);
     app.action('admin');
     app.action('language', 'en');
     app.action('close');
     assert.equal(app.view.overlay, 'dialogue');
-    assert.equal(app.view.dialogue.choice, 1);
+    assert.equal(app.view.dialogue.quiz.answerId, chosen, 'Scene select open and close preserves the answer.');
     assert.equal(app.view.dialogue.index, 2);
+    assert.deepEqual(plain(app.game.quizCompleted), []);
     app.action('admin');
     app.action('jump', 'owl:1');
-    assert.equal(app.view.dialogue.choice, null);
+    assert.deepEqual(plain(app.view.dialogue.quiz), { quizId: QUIZZES.owl[1].id, answerId: null }, 'A jump clears the old answer and prepares the requested quiz.');
+    assert.deepEqual(plain(app.game.quizCompleted), [], 'Jumping must not award the abandoned quiz.');
     assert.equal(app.view.dialogue.index, 1);
     assert.equal(app.game.language, 'en');
   } finally { app.dispose(); }
@@ -671,6 +627,7 @@ test('choosing the dance after supper pauses its reveal clock in scene select', 
     app.frame(50);
     finishActionForApp(app);
     app.frame(100);
+    passSupper(app);
     assert.equal(app.view.overlay, 'endingChoice');
     app.action('ending', 'dance');
     assert.equal(app.view.overlay, 'dance');
@@ -693,6 +650,8 @@ test('choosing the dance after supper pauses its reveal clock in scene select', 
     app.frame(350);
     assert.ok(app.game.finaleTime >= 4);
     app.action('restart');
+    assert.equal(app.view.overlay, 'confirmWalk', 'Walk again asks before replacing an unsaved or study walk.');
+    app.action('confirmWalk');
     assert.equal(app.game.phase, 'playing');
     assert.equal(app.game.potatoes.length, 0);
     assert.equal(app.game.finaleTime, 0);
@@ -703,7 +662,7 @@ test('choosing the dance after supper pauses its reveal clock in scene select', 
 test('F2 and Escape close scene select when an animal menu has focus without changing progress', () => {
   const app = entryPoint();
   try {
-    app.action('admin'); app.action('jump', 'fox:2'); app.action('dialogueChoice', 1);
+    app.action('admin'); app.action('jump', 'fox:2'); const chosen = quizAnswer(app);
     for (const code of ['F2', 'Escape']) {
       app.action('admin');
       const before = structuredClone(app.game);
@@ -714,7 +673,7 @@ test('F2 and Escape close scene select when an animal menu has focus without cha
       assert.equal(close.prevented, true);
       assert.equal(app.view.overlay, 'dialogue');
       assert.deepEqual(app.game, before);
-      assert.equal(app.view.dialogue.choice, 1);
+      assert.equal(app.view.dialogue.quiz.answerId, chosen);
     }
   } finally { app.dispose(); }
 });
@@ -741,10 +700,11 @@ test('slow frames and replay send the actual video position to the family animat
 for (const ending of ['dance', 'goddess']) test(`supper lets the player choose ${ending} while preserving language and mute`, () => {
   const app = entryPoint();
   try {
-    app.action('language', 'en'); app.action('sound'); app.action('sound');
+    app.action('language', 'en'); app.action('sound', undefined, trusted); app.action('sound', undefined, trusted);
     app.action('admin'); app.action('jump', 'serve'); app.frame(0);
     app.window.fire('keydown', { code: 'KeyE' }); app.frame(50);
     finishActionForApp(app); app.frame(100);
+    passSupper(app);
     assert.equal(app.game.ending, null);
     assert.equal(app.view.overlay, 'endingChoice');
     app.window.fire('keydown', { code: 'Escape' }); app.frame(500);
@@ -762,11 +722,12 @@ for (const ending of ['dance', 'goddess']) test(`supper lets the player choose $
     app.setReducedMotion(true); app.frame(550);
     if (ending === 'goddess') assert.equal(app.view.overlay, 'win');
     app.action('restart');
+    assert.equal(app.view.overlay, 'confirmWalk', 'Walk again asks before replacing an unsaved or study walk.');
+    app.action('confirmWalk');
     assert.equal(app.game.ending, null, 'A new walk must offer both endings again.');
   } finally { app.dispose(); }
 });
 
-function jumpTo(app, id) { app.action('admin'); app.action('jump', id); }
 function finishCare(app, choice) {
   jumpTo(app, 'aldo'); app.frame(0); app.window.fire('keydown', {code:'KeyE'}); app.frame(20);
   app.window.fire('keyup', {code:'KeyE'});
@@ -887,4 +848,124 @@ test('a real walk from Jitřenka to the deer ends the gift before conversation w
   app.window.fire('keydown', {code:'KeyE'}); app.frame(time += 50);
   assert.equal(app.game.conversation, 'deer'); assert.equal(app.view.moment, null);
   assert.equal(JSON.stringify([app.game.tears, app.game.learnedSongs]), inventory); app.dispose();
+});
+
+test('a garden song through the entry point rewards once and frames its finish without owning the reward', async () => {
+  // V02: halfway cancellation, Escape, a stalled frame, completion, an immediate
+  // new action, and direct entry. Exactly one restoration remains.
+  for (const site of SONG_SITES) for (const interruption of ['move', 'escape', 'complete']) {
+    const app = entryPoint();
+    try {
+      jumpTo(app, `garden-${site.id}`); app.frame(0);
+      const before = JSON.stringify([app.game.potatoes, app.game.tears, app.game.learnedSongs]);
+      app.window.fire('keydown', { code: 'KeyE' }); app.frame(20); app.window.fire('keyup', { code: 'KeyE' });
+      assert.equal(app.view.overlay, 'songs');
+      app.action('chooseSong', site.songId);
+      const song = app.game.activeSong;
+      let time = 20 + song.duration * 500;
+      app.frame(time);
+      assert.ok(song.progress > .4 && song.progress < .6, 'The fixture must reach the middle of the phrase.');
+      if (interruption === 'move') { app.window.fire('keydown', { code: 'KeyD' }); app.frame(time += 50); app.window.fire('keyup', { code: 'KeyD' }); }
+      if (interruption === 'escape') { app.window.fire('keydown', { code: 'Escape' }); app.frame(time += 50); }
+      if (interruption !== 'complete') {
+        assert.equal(app.game.activeSong, null);
+        assert.ok(!app.game.restoredSites.includes(site.id), 'A cancelled song restores nothing.');
+        assert.equal(app.view.moment, null);
+        continue;
+      }
+      app.frame(time += song.duration * 1000); // A stalled frame finishes the song once.
+      assert.ok(app.game.restoredSites.includes(site.id));
+      assert.equal(app.game.restoredSites.filter((id) => id === site.id).length, 1);
+      assert.equal(app.view.moment?.kind, 'restoration-finish');
+      assert.equal(app.view.moment.subjectId, site.id);
+      assert.equal(JSON.stringify([app.game.potatoes, app.game.tears, app.game.learnedSongs]), before, 'The finish presentation adds no reward.');
+      const finish = app.view.moment;
+      app.action('pause'); app.frame(time += 1000);
+      const frozen = finish.elapsed; app.frame(time += 1000);
+      assert.equal(finish.elapsed, frozen, 'Pause freezes it.');
+      app.action('resume');
+      app.window.fire('keydown', { code: 'KeyA' }); app.frame(time += 50); app.window.fire('keyup', { code: 'KeyA' });
+      assert.equal(app.view.moment?.focusReleased, true, 'Moving releases the framing immediately.');
+      app.frame(time += 2000);
+      assert.equal(app.view.moment, null, 'The 1.6-second finish ends on its own.');
+      assert.equal(app.game.restoredSites.filter((id) => id === site.id).length, 1);
+    } finally { app.dispose(); }
+  }
+  const direct = entryPoint();
+  try {
+    jumpTo(direct, 'garden-woodland'); jumpTo(direct, 'home'); direct.frame(0);
+    assert.equal(direct.view.moment, null, 'Prepared scenes show final states without a new finish.');
+  } finally { direct.dispose(); }
+});
+
+test('practice spots sing once, award nothing, and only respond after a finished phrase', async () => {
+  const { PRACTICE_SPOTS } = await import('../src/data.js');
+  for (const spot of PRACTICE_SPOTS) {
+    const app = entryPoint();
+    try {
+      app.action('newWalk'); app.frame(0);
+      Object.assign(app.game.player, { x: spot.x, z: spot.z + 1.3 });
+      app.window.fire('keydown', { code: 'KeyE' }); app.frame(50); app.window.fire('keyup', { code: 'KeyE' });
+      assert.equal(app.game.activeSong, null, 'An unlearned song offers guidance, not a performance.');
+      assert.match(app.game.message, /naučí/);
+      jumpTo(app, spot.id); app.frame(100);
+      const before = JSON.stringify([app.game.potatoes, app.game.tears, app.game.learnedSongs, app.game.restoredSites, app.game.houseStep, app.game.talked]);
+      app.window.fire('keydown', { code: 'KeyE' }); app.frame(150); app.window.fire('keyup', { code: 'KeyE' });
+      const song = app.game.activeSong;
+      assert.equal(song?.kind, 'practice'); assert.equal(song.targetId, spot.id); assert.equal(song.songId, spot.songId);
+      app.action('map'); app.frame(1150); app.action('close');
+      assert.equal(app.game.activeSong, null, 'Opening a guide stops singing, like any song.');
+      app.window.fire('keydown', { code: 'KeyE' }); app.frame(1200); app.window.fire('keyup', { code: 'KeyE' });
+      const again = app.game.activeSong;
+      app.frame(1200 + again.duration * 1000 + 60);
+      assert.equal(app.game.activeSong, null);
+      assert.equal(app.view.moment?.kind, 'practice-response');
+      assert.equal(app.view.moment.subjectId, spot.id);
+      assert.equal(JSON.stringify([app.game.potatoes, app.game.tears, app.game.learnedSongs, app.game.restoredSites, app.game.houseStep, app.game.talked]), before, 'Practice awards nothing.');
+    } finally { app.dispose(); }
+  }
+});
+
+test('the settled supper continues once, by button, Escape, or its own end, and freezes on focus loss', () => {
+  for (const exit of ['button', 'escape', 'expire']) {
+    const app = entryPoint({ ending: null });
+    try {
+      jumpTo(app, 'serve'); app.frame(0);
+      app.window.fire('keydown', { code: 'KeyE' }); app.frame(50);
+      finishActionForApp(app); app.frame(100);
+      assert.equal(app.view.overlay, 'supper');
+      assert.equal(app.game.phase, 'won');
+      const supper = app.view.moment;
+      app.window.fire('blur'); app.frame(2000);
+      assert.equal(supper.elapsed, app.view.moment.elapsed);
+      assert.ok(supper.elapsed < .2, 'Focus loss freezes the supper presentation.');
+      app.window.fire('focus');
+      if (exit === 'button') { app.action('supperContinue'); app.action('supperContinue'); }
+      if (exit === 'escape') app.window.fire('keydown', { code: 'Escape' });
+      if (exit === 'expire') { app.frame(2100); app.frame(2200); app.frame(4000); }
+      assert.equal(app.view.overlay, 'endingChoice', exit);
+      assert.equal(app.game.phase, 'won');
+      assert.equal(app.game.ending, null);
+    } finally { app.dispose(); }
+  }
+  for (const ending of ['ending-dance', 'ending-goddess']) {
+    const app = entryPoint();
+    try { jumpTo(app, ending); app.frame(0); assert.notEqual(app.view.overlay, 'supper', 'Prepared endings bypass supper.'); }
+    finally { app.dispose(); }
+  }
+});
+
+test('the guidance preference collapses optional detail and keeps essentials', () => {
+  const app = entryPoint();
+  try {
+    app.action('newWalk'); app.frame(0);
+    assert.equal(app.view.guidance, true);
+    app.action('pause'); app.action('guidance');
+    assert.equal(app.view.guidance, false);
+    app.action('language', 'en');
+    assert.equal(app.view.guidance, false, 'Language changes keep the preference.');
+    app.action('resume');
+    assert.equal(app.view.overlay, null);
+    assert.equal(app.view.guidance, false);
+  } finally { app.dispose(); }
 });

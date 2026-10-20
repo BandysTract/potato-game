@@ -4,6 +4,8 @@
 
 Planning is complete. The October 20 follow-up resolves sound after Continue, database disconnects, and New walk labels, including exact cancellation, recovery, and status rules. Both scoped cross-provider review passes ran. Final corrections were checked locally and weren’t independently reviewed again under the two-pass cap. The [review record](../reviews/game-evolution-plan/REVIEW.md) preserves findings, dispositions, and limits. Don’t execute the game changes under the planning request.
 
+Implementation status, October 20: attempt 01 is partway through and stopped at a clean point. Quizzes, music stages, practice singing, supper, map and guidance, and local continuation are implemented with automated tests. World visuals aren't wired, and browser checks and the review gate haven't run. The [handoff](game-evolution-handoff.md) lists what remains.
+
 - Created October 19, 2026, for `/Users/johncampbell/Documents/ChatGPT/Potato game 2`.
 - Owner requests: “Propose an evolution of this game that will take it to the next level of polish, eccentricity, and impressiveness.” Later: “the animal dialogues should be a kind of quiz, not just an exchange, based on facts or established thought experiments.” Finally: “when you have the final plan, please run it through the cross-provider rule. I want a refined implementation plan a fresh session can run with”.
 - Deliverables now: this implementation plan, the linked question pack, and review records. No implementation, dependency installation, commit, push, publication, launcher rebuild, or local model execution is authorized by the planning request.

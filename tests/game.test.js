@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { BOUNDS, CREATURES, FAIRIES, HOME, HOUSE_OBSTACLES, HOUSE_START, HOUSE_TARGETS, OBSTACLES, POTATOES, START, SONGS, SONG_SITES, HOUSE_CAT, HOUSE_BOUNDS } from '../src/data.js';
-import { cancelSong, chooseSong, createGame, finishConversation, getGoal, getNearby, setLanguage, setMessage, startGame, step } from '../src/game.js';
+import { answerQuiz, cancelSong, chooseSong, createGame, finishConversation, getGoal, getNearby, setLanguage, setMessage, startGame, step } from '../src/game.js';
 import { HOUSE_ACTIVITIES, DIALOGUES } from '../src/dialogues.js';
+import { QUIZZES, QUIZ_IDS, findQuiz } from '../src/quizzes.js';
 import { CS, placeName, t } from '../src/i18n.js';
 import { performanceDuration } from '../src/songs.js';
 
@@ -64,6 +65,14 @@ function visit(game, target) {
 function press(game) {
   step(game, idle, .05);
   step(game, { ...idle, interact: true }, .05);
+}
+
+// Answer the active quiz with its correct option, or the first wrong one.
+function answer(game, correct = true) {
+  const quiz = findQuiz(game.quizSession.quizId);
+  const option = correct ? quiz.correctOptionId : quiz.options.find(({ id }) => id !== quiz.correctOptionId).id;
+  assert.equal(answerQuiz(game, option, quiz.id), true);
+  return option;
 }
 
 function collect(game, potato) {
@@ -443,45 +452,56 @@ test('messages expire only during active play', () => {
   assert.ok(game.elapsed > 5);
 });
 
-test('creature conversations pause play, preserve gifts, and record repeat visits once', () => {
+test('animal quizzes pause play, preserve gifts, and record an answered visit once', () => {
   const game = playing();
   assert.equal(game.conversation, null);
   assert.deepEqual(game.talked, []);
   finishConversation(game);
-  assert.deepEqual(game.talked, [], 'Closing an absent conversation must not record a visit.');
+  assert.deepEqual(game.talked, [], 'Closing an absent quiz must not record a visit.');
   collect(game, POTATOES[0]);
   walkTo(game, { x: -7, z: 5 });
   walkTo(game, CREATURES[0]);
-  assert.equal(game.conversation, null, 'Walking up to a creature alone must not open dialogue.');
+  assert.equal(game.conversation, null, 'Walking up to an animal alone must not open its quiz.');
   assert.equal(getNearby(game)?.type, 'creature');
   assert.equal(getNearby(game)?.id, CREATURES[0].id);
-  assert.notEqual(getGoal(game).type, 'creature', 'Optional conversations must not replace gathering guidance.');
+  assert.notEqual(getGoal(game).type, 'creature', 'Optional quizzes must not replace gathering guidance.');
   const potatoes = [...game.potatoes];
   const tears = [...game.tears];
   step(game, { ...idle, interact: true }, 0.05);
   assert.equal(game.conversation, CREATURES[0].id);
+  assert.deepEqual(game.quizSession, { quizId: QUIZZES.fox[game.conversationIndex].id, answerId: null });
   assert.equal(game.activeSong, null);
   assert.equal(game.player.moving, false);
   const paused = structuredClone(game);
   frames(game, 100, { x: 1, y: 1, interact: true });
-  assert.deepEqual(game, paused, 'Reading a conversation freezes movement, gifts, and adventure time.');
+  assert.deepEqual(game, paused, 'Reading a quiz freezes movement, gifts, and adventure time.');
   finishConversation(game);
   assert.equal(game.conversation, null);
-  assert.deepEqual(game.talked, [CREATURES[0].id]);
+  assert.equal(game.quizSession, null);
+  assert.deepEqual(game.talked, [], 'Closing before answering must not mark a visit.');
+  assert.deepEqual(game.quizCompleted, []);
+  press(game);
+  answer(game, false);
+  finishConversation(game);
+  assert.deepEqual(game.talked, [CREATURES[0].id], 'An incorrect answer still counts as a visit.');
   finishConversation(game);
   assert.deepEqual(game.talked, [CREATURES[0].id]);
   press(game);
-  assert.equal(game.conversation, CREATURES[0].id, 'A completed conversation remains available for replay.');
+  assert.equal(game.conversation, CREATURES[0].id, 'A completed quiz leaves the animal available.');
+  answer(game);
   finishConversation(game);
-  assert.deepEqual(game.talked, [CREATURES[0].id], 'Replaying must not add a duplicate visit.');
+  assert.deepEqual(game.talked, [CREATURES[0].id], 'Another answered visit must not add a duplicate mark.');
+  assert.equal(game.quizCompleted.length, 2);
   assert.deepEqual(game.potatoes, potatoes);
   assert.deepEqual(game.tears, tears);
   const position = { ...game.player };
   step(game, { x: 1, y: 0 }, 0.05);
-  assert.ok(distance(game.player, position) > 0, 'Closing dialogue restores walking.');
+  assert.ok(distance(game.player, position) > 0, 'Closing the quiz restores walking.');
   const restart = createGame();
   assert.equal(restart.conversation, null);
   assert.deepEqual(restart.talked, []);
+  assert.deepEqual(restart.quizCompleted, []);
+  assert.equal(restart.quizSession, null);
 });
 
 test('a new walk draws one independent opening per animal and owns its rotation state', () => {
@@ -497,8 +517,9 @@ test('a new walk draws one independent opening per animal and owns its rotation 
   assert.notEqual(game.dialogueNext, another.dialogueNext);
 });
 
-test('every animal cycles three questions from any starting question only when closed', () => {
-  // Rejects rerolling on each visit, advancing on open, and counting a double close.
+test('every animal cycles three questions from any start, advancing only after an answered close', () => {
+  // Rejects rerolling on each visit, advancing on open or an unanswered close,
+  // and counting a double close. Correct and incorrect answers progress alike.
   for (const initial of [0, 1, 2]) {
     let draws = 0;
     const game = startGame(createGame('en', () => { draws++; return (initial + 0.1) / 3; }));
@@ -514,13 +535,20 @@ test('every animal cycles three questions from any starting question only when c
         press(game);
         assert.equal(game.conversation, creature.id);
         assert.equal(game.conversationIndex, expected);
+        assert.equal(game.quizSession.quizId, QUIZZES[creature.id][expected].id);
+        finishConversation(game);
+        assert.equal(game.dialogueNext[creature.id], expected, 'An unanswered close must keep the question.');
+        press(game);
+        assert.equal(game.quizSession.quizId, QUIZZES[creature.id][expected].id, 'Reopening presents the same question.');
         assert.equal(game.dialogueNext[creature.id], expected, 'Opening must not consume the question.');
         seen.push(game.conversationIndex);
+        answer(game, visit % 2 === 0);
         const before = structuredClone(game);
         frames(game, 20, { x: 1, y: 1, interact: true });
-        assert.deepEqual(game, before, 'Reading must keep the active question and next question stable.');
+        assert.deepEqual(game, before, 'Reading the result must keep the active question and next question stable.');
         setLanguage(game, visit % 2 ? 'en' : 'cs');
         assert.equal(game.conversationIndex, expected, 'Changing language must keep the question.');
+        assert.ok(game.quizSession.answerId, 'Changing language must keep the answer.');
         finishConversation(game);
         assert.equal(game.conversationIndex, null);
         assert.equal(game.dialogueNext[creature.id], (expected + 1) % 3);
@@ -535,36 +563,66 @@ test('every animal cycles three questions from any starting question only when c
     }
     assert.equal(draws, CREATURES.length, 'Visits and language changes must not draw new randomness.');
     assert.deepEqual(game.talked, CREATURES.map(({ id }) => id));
+    assert.deepEqual([...game.quizCompleted].sort(), [...QUIZ_IDS].sort(), 'Every question is reachable and recorded once.');
   }
 });
 
-test('all four animals have three distinct bilingual conversations with two complete branches', () => {
-  assert.equal(CREATURES.length, 4);
-  for (const { id } of CREATURES) {
-    const dialogues = DIALOGUES[id];
-    assert.equal(dialogues.length, 3, `${id} needs three questions.`);
-    for (const language of ['cs', 'en']) {
-      assert.equal(new Set(dialogues.map(({ opening }) => opening[language])).size, 3);
-      assert.equal(new Set(dialogues.map(({ theme }) => theme[language])).size, 3);
-      for (const dialogue of dialogues) {
-        assert.equal(dialogue.choices.length, 2);
-        assert.ok(dialogue.theme[language]);
-        assert.ok(dialogue.opening[language]);
-        const [first, second] = dialogue.choices;
-        for (const choice of dialogue.choices) {
-          assert.ok(choice[language]);
-          assert.ok(choice.reply[language]);
-          assert.ok(choice.reflection[language]);
-        }
-        assert.notEqual(first[language], second[language]);
-        assert.notEqual(first.reply[language], second.reply[language]);
-        assert.notEqual(first.reflection[language], second.reflection[language]);
-      }
+test('quiz answers accept one allowed option for the named active quiz only', () => {
+  const game = playing();
+  walkTo(game, { x: -7, z: 5 });
+  walkTo(game, CREATURES[0]);
+  assert.equal(answerQuiz(game, 'switch', 'fox-monty'), false, 'No session means no answer.');
+  press(game);
+  const { quizId } = game.quizSession;
+  const quiz = findQuiz(quizId);
+  const [first, second] = quiz.options;
+  const other = QUIZ_IDS.find(id => id !== quizId);
+  assert.equal(answerQuiz(game, first.id, other), false, 'An old event for another quiz must not answer this one.');
+  assert.equal(answerQuiz(game, first.id), false, 'An event without its quiz id is ignored.');
+  assert.equal(answerQuiz(game, 'forged', quizId), false);
+  assert.equal(answerQuiz(game, findQuiz(other).options[0].id === first.id ? 'nope' : findQuiz(other).options[0].id, quizId), false, 'Another quiz’s option is not allowed.');
+  assert.equal(answerQuiz(game, 0, quizId), false, 'Family reply indices are not quiz options.');
+  assert.equal(game.quizSession.answerId, null);
+  const before = JSON.stringify([game.potatoes, game.tears, game.learnedSongs, game.restoredSites, game.dialogueNext, game.talked]);
+  assert.equal(answerQuiz(game, first.id, quizId), true);
+  assert.equal(answerQuiz(game, first.id, quizId), false, 'A repeated click is ignored.');
+  assert.equal(answerQuiz(game, second.id, quizId), false, 'The first answer is final for the encounter.');
+  assert.equal(game.quizSession.answerId, first.id);
+  assert.equal(JSON.stringify([game.potatoes, game.tears, game.learnedSongs, game.restoredSites, game.dialogueNext, game.talked]), before, 'Answering changes no inventory or progress until close.');
+  finishConversation(game);
+  assert.equal(answerQuiz(game, second.id, quizId), false, 'A closed session cannot be answered.');
+  assert.deepEqual(game.quizCompleted, [quizId]);
+  const house = playing();
+  house.scene = 'house';
+  house.conversation = 'john';
+  assert.equal(answerQuiz(house, 'stay', 'fox-monty'), false, 'Household encounters have no quiz session.');
+});
+
+test('all 36 quiz options produce their own keyed result in both languages through the model', () => {
+  for (const creature of CREATURES) for (const [index, quiz] of QUIZZES[creature.id].entries()) for (const option of quiz.options) {
+    const game = createGame('en', () => 0);
+    startGame(game);
+    game.dialogueNext[creature.id] = index;
+    game.player = { x: creature.x, z: creature.z + 1.3, facing: 1, direction: 2, moving: false };
+    press(game);
+    assert.equal(game.quizSession.quizId, quiz.id);
+    assert.equal(answerQuiz(game, option.id, quiz.id), true);
+    const correct = option.id === quiz.correctOptionId;
+    assert.equal(quiz.options.filter(({ id }) => id === quiz.correctOptionId).length, 1);
+    for (const language of ['en', 'cs']) {
+      setLanguage(game, language);
+      assert.ok(quiz.feedback[game.quizSession.answerId][language].length > 10);
+      assert.notEqual(quiz.feedback[option.id][language], quiz.explanation[language]);
     }
+    assert.equal(correct, game.quizSession.answerId === quiz.correctOptionId);
+    finishConversation(game);
+    assert.deepEqual(game.quizCompleted, [quiz.id]);
+    assert.deepEqual(game.talked, [creature.id]);
+    assert.equal(game.dialogueNext[creature.id], (index + 1) % 3, 'Correct and incorrect answers share one progression rule.');
   }
 });
 
-test('each forest creature can be reached and spoken to through normal controls', () => {
+test('each forest animal can be reached and quizzed through normal controls', () => {
   const game = playing();
   walkTo(game, { x: -7, z: 5 });
   for (const creature of CREATURES) {
@@ -573,6 +631,7 @@ test('each forest creature can be reached and spoken to through normal controls'
     walkTo(game, creature);
     step(game, { ...idle, interact: true }, 0.05);
     assert.equal(game.conversation, creature.id);
+    answer(game);
     finishConversation(game);
   }
   assert.deepEqual(game.talked, CREATURES.map(({ id }) => id));

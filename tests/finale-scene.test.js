@@ -11,7 +11,7 @@ function fixture(t, width = 1280, height = 800) {
   globalThis.document = { createElement: () => ({ getContext: () => context }) };
   const scene = new THREE.Scene();
   const frames = length => Array.from({ length }, () => new THREE.Texture());
-  const painted = { sing: frames(24), singFrameCount: 12, actions: frames(12), cat: frames(6), idle: frames(9) };
+  const painted = { hanaDance: frames(16), johnDance: frames(8), sing: frames(24), singFrameCount: 12, actions: frames(12), cat: frames(6), idle: frames(9) };
   const finale = createFamilyFinale(scene, painted, new THREE.Texture());
   const camera = new THREE.PerspectiveCamera(35, width / height, .1, 180);
   const distance = Math.max(22, 9.8 / (2 * Math.tan(THREE.MathUtils.degToRad(17.5)) * camera.aspect));
@@ -54,7 +54,7 @@ test('dancing uses the playback clock, and reduced motion immediately gives a st
   const percy = scene.getObjectByName('dancing-percy');
   const aldo = scene.getObjectByName('dancing-aldo-in-cot');
   const restingCat = percy.position.clone(), restingBaby = aldo.material.map;
-  game.dancePlaying = true; game.danceTime = .12; update();
+  game.dancePlaying = true; game.danceTime = 1.6; update();
   assert.notDeepEqual(percy.position.toArray(), restingCat.toArray());
   const dancingCat = percy.position.clone();
   game.dancePlaying = false; update();
@@ -66,7 +66,7 @@ test('dancing uses the playback clock, and reduced motion immediately gives a st
   game.danceTime = 99; update(true);
   assert.deepEqual(percy.position.toArray(), stillCat.toArray());
   assert.equal(aldo.material.map, stillBaby);
-  assert.equal(scene.getObjectByName('dancing-hana').material.map, painted.sing[painted.singFrameCount + 2]);
+  assert.equal(scene.getObjectByName('dancing-hana').material.map, painted.hanaDance[8]);
 });
 
 test('repeated finale replays reuse the scene and dispose owned resources', t => {

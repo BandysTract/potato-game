@@ -1,0 +1,481 @@
+{
+  "tool": "built-in imagegen",
+  "references": [
+    "public/assets/characters/idle.png",
+    "public/assets/characters/actions.png"
+  ],
+  "prompts": {
+    "hana": "Use case: illustration-story. Create a transparent production sprite atlas for the adult Hana shown in the reference idle and action sheets. Reference images are identity/style references only. Same blonde braided woman, red head scarf, cream embroidered Czech blouse/apron, blue skirt, brown ankle boots, same face, body proportions, painterly storybook treatment. NO BASKET and no props. Exactly eight full-body dance poses in a precise 4 columns by 2 rows grid, each cell isolated with generous fully transparent gutters, all soles on consistent baseline within each row and heads consistent height. Sequence left to right then next row: 1 planted relaxed feet arms down, 2 weight to right boot left heel lifting hands gently opening, 3 left foot passing toward right with softly bent knees, 4 small rightward step arms open below shoulders, 5 planted centered hands open, 6 weight to left boot right heel lifting, 7 right foot passing toward left with knees soft, 8 returning near first planted stance with hands lowering. Facing three-quarter toward viewer's left throughout, answering her husband's playful step. Small coherent gentle dance, visibly distinct phases and seamless return, no duplicated bodies, no clipped limbs, no ground shadow, no text, real alpha transparency. Landscape atlas.",
+    "john": "Use case: illustration-story. Production transparent game sprite atlas. Input images are likeness and style references for JOHN only, man in bottom row. Preserve his face, short sandy hair, beard, sage rolled-sleeve shirt, brown vest, olive trousers and brown boots, painterly detailed storybook style. Exactly eight full-body enthusiastic but gentle dance poses in exact 4 columns by 2 rows, consistent standing height and sole baseline per row, at least 20 pixels transparent gutters at every cell boundary. Facing three-quarter toward viewer's right throughout. Sequence: 1 planted with hands by waist, 2 right heel lifts arms opening, 3 right knee passes forward arms spread, 4 right foot taps outward one hand inviting partner, 5 planted center arms lowering, 6 left heel lifts other arm opens, 7 left knee passes forward, 8 return toward first stance. Readable different leg phases, no high jumps, no props, no text, no shadows, NO scenery, genuine alpha transparency. Preserve full boots and fingers inside cells. Landscape sheet.",
+    "johnLayoutRepair": "Edit this John dance sprite atlas ONLY to correct the cell layout. Preserve the same eight poses, likeness, clothing, painterly style and exact sequence. Put all eight complete figures into a strict 4 by 2 equal grid, with each entire figure including spread hands fitting within the INNER 70% width and INNER 85% height of its cell. Shrink figures uniformly as needed, keep generous fully transparent space around ALL sides of each figure. No hand or boot may cross its quarter-width or half-height cell boundary. Consistent body scale and foot baseline across all eight cells. Genuine transparent alpha background, no shadows, no text. Do not change the poses.",
+    "care": "Use case: illustration-story. Create new transparent household-care sprite atlas using two supplied character sheets as identity/style references. Precise 4 columns by 2 rows. Row 1 four poses of Hana ONLY: same blonde braid, red scarf, cream embroidered apron/blouse, blue skirt, boots, no basket. Facing three-quarter right, planted boots, first upright with hands near waist, second slight quiet lean forward right hand lowering toward a cot just beyond the cell (do NOT draw cot), third gentle reaching index finger at waist height, fourth held gentle lean with offered finger and soft closed-mouth humming expression. Keep her body scale and foot anchor constant, do not bend to ground. Row 2 four poses of John ONLY: same sandy hair/beard, sage shirt, brown vest/boots and olive pants. Facing three-quarter left, planted feet. First holds TWO small cream ceramic bowls nested in both hands at waist; second leans slightly left with nested bowls; third carefully lowers bowls onto tray just off-image left at hip height (do NOT draw tray); fourth straightens with empty hands relaxed. Exactly four separate whole figures per row. Every figure limited to INNER 75% width and 85% height of each cell, generous empty transparent gutters between every cell and row, no clipping, consistent character scale throughout each row. No floor shadows, no background, no text, preserve alpha.",
+    "johnFinalLayoutRepair": "Correct the layout of the supplied dance sprite atlas. The spread hands STILL cross the vertical 25%, 50%, and 75% cell boundaries. Make ALL EIGHT PEOPLE MUCH SMALLER, approximately HALF their present width and height, inside the SAME 4-column 2-row grid. Keep eight poses and identical likeness, clothing, and anatomy. Do not zoom or fill unused space. There must be extremely wide empty transparent bands between columns, at least one head-width on either side of each spread hand. Keep the eight complete figures centered at x=12.5%,37.5%,62.5%,87.5%, y=25%,75%. Each figure INCLUDING ARMS must occupy at most 15% of TOTAL IMAGE WIDTH. The whole person must occupy at most 35% of TOTAL IMAGE HEIGHT. All figures share the SAME scale. Transparent alpha background, no new marks or text. Whitespace is intentional and essential for this machine-sliced sprite sheet."
+  },
+  "atlases": {
+    "hana": {
+      "path": "hana-dance-storybook.png",
+      "columns": 4,
+      "rows": 2,
+      "acceptedCells": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "mirrored": true,
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "bytes": 2376312,
+      "sha256": "1b8b8612d3d39e50e7c1074dc2d4be6665257a71916a7a7cadd32ab6d58f3461",
+      "cropCells": [
+        {
+          "cell": 0,
+          "crop": [
+            0,
+            0,
+            384,
+            512
+          ],
+          "alpha100Bounds": [
+            61,
+            13,
+            311,
+            500
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 1,
+          "crop": [
+            384,
+            0,
+            768,
+            512
+          ],
+          "alpha100Bounds": [
+            15,
+            12,
+            357,
+            501
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 2,
+          "crop": [
+            768,
+            0,
+            1152,
+            512
+          ],
+          "alpha100Bounds": [
+            48,
+            31,
+            342,
+            504
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 3,
+          "crop": [
+            1152,
+            0,
+            1536,
+            512
+          ],
+          "alpha100Bounds": [
+            26,
+            12,
+            371,
+            500
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 4,
+          "crop": [
+            0,
+            512,
+            384,
+            1024
+          ],
+          "alpha100Bounds": [
+            16,
+            5,
+            382,
+            487
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 5,
+          "crop": [
+            384,
+            512,
+            768,
+            1024
+          ],
+          "alpha100Bounds": [
+            30,
+            7,
+            378,
+            488
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 6,
+          "crop": [
+            768,
+            512,
+            1152,
+            1024
+          ],
+          "alpha100Bounds": [
+            67,
+            15,
+            378,
+            487
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 7,
+          "crop": [
+            1152,
+            512,
+            1536,
+            1024
+          ],
+          "alpha100Bounds": [
+            76,
+            5,
+            342,
+            487
+          ],
+          "touchesBoundary": false
+        }
+      ],
+      "omittedCells": [],
+      "status": "accepted for local implementation; owner likeness and tone review pending"
+    },
+    "john": {
+      "path": "john-dance-storybook.png",
+      "columns": 4,
+      "rows": 2,
+      "acceptedCells": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "status": "accepted for local implementation; owner likeness and tone review pending",
+      "dimensions": [
+        1448,
+        1086
+      ],
+      "bytes": 586403,
+      "sha256": "21cdc944d18eb1f10c8a7e2f44f9c6b32846be011573416f242af04b9db25f24",
+      "cropCells": [
+        {
+          "cell": 0,
+          "crop": [
+            0,
+            0,
+            362,
+            543
+          ],
+          "alpha100Bounds": [
+            105,
+            187,
+            258,
+            483
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 1,
+          "crop": [
+            362,
+            0,
+            724,
+            543
+          ],
+          "alpha100Bounds": [
+            64,
+            188,
+            310,
+            481
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 2,
+          "crop": [
+            724,
+            0,
+            1086,
+            543
+          ],
+          "alpha100Bounds": [
+            61,
+            188,
+            309,
+            482
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 3,
+          "crop": [
+            1086,
+            0,
+            1448,
+            543
+          ],
+          "alpha100Bounds": [
+            105,
+            188,
+            304,
+            480
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 4,
+          "crop": [
+            0,
+            543,
+            362,
+            1086
+          ],
+          "alpha100Bounds": [
+            107,
+            127,
+            264,
+            424
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 5,
+          "crop": [
+            362,
+            543,
+            724,
+            1086
+          ],
+          "alpha100Bounds": [
+            99,
+            127,
+            309,
+            422
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 6,
+          "crop": [
+            724,
+            543,
+            1086,
+            1086
+          ],
+          "alpha100Bounds": [
+            82,
+            126,
+            321,
+            423
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 7,
+          "crop": [
+            1086,
+            543,
+            1448,
+            1086
+          ],
+          "alpha100Bounds": [
+            108,
+            127,
+            270,
+            425
+          ],
+          "touchesBoundary": false
+        }
+      ],
+      "omittedCells": []
+    },
+    "care": {
+      "path": "family-care-storybook.png",
+      "columns": 4,
+      "rows": 2,
+      "rowEdges": [
+        0,
+        0.5129650507328072,
+        1
+      ],
+      "acceptedCells": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "dimensions": [
+        1774,
+        887
+      ],
+      "bytes": 1292981,
+      "sha256": "a9faf5fc47317d8a96e025ac92c54939dcd6f9f194d4e620e90df4379576d0a3",
+      "cropCells": [
+        {
+          "cell": 0,
+          "crop": [
+            0,
+            0,
+            443,
+            455
+          ],
+          "alpha100Bounds": [
+            130,
+            7,
+            390,
+            448
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 1,
+          "crop": [
+            443,
+            0,
+            887,
+            455
+          ],
+          "alpha100Bounds": [
+            87,
+            31,
+            402,
+            450
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 2,
+          "crop": [
+            887,
+            0,
+            1330,
+            455
+          ],
+          "alpha100Bounds": [
+            97,
+            8,
+            439,
+            449
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 3,
+          "crop": [
+            1330,
+            0,
+            1774,
+            455
+          ],
+          "alpha100Bounds": [
+            73,
+            16,
+            410,
+            450
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 4,
+          "crop": [
+            0,
+            455,
+            443,
+            887
+          ],
+          "alpha100Bounds": [
+            144,
+            2,
+            371,
+            428
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 5,
+          "crop": [
+            443,
+            455,
+            887,
+            887
+          ],
+          "alpha100Bounds": [
+            140,
+            13,
+            407,
+            427
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 6,
+          "crop": [
+            887,
+            455,
+            1330,
+            887
+          ],
+          "alpha100Bounds": [
+            82,
+            16,
+            394,
+            427
+          ],
+          "touchesBoundary": false
+        },
+        {
+          "cell": 7,
+          "crop": [
+            1330,
+            455,
+            1774,
+            887
+          ],
+          "alpha100Bounds": [
+            116,
+            3,
+            329,
+            428
+          ],
+          "touchesBoundary": false
+        }
+      ],
+      "omittedCells": [],
+      "status": "accepted for local implementation; owner likeness and tone review pending"
+    }
+  }
+}

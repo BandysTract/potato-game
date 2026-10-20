@@ -6,6 +6,7 @@ import { getNearby } from './game.js';
 import { barkTexture, treeTrunkGeometry, tearTexture, tearJarTexture, breezeAt } from './forest-art.js';
 import { TUNES, songPhrase } from './songs.js';
 import { createFamilyFinale } from './finale-scene.js';
+import { encounterFrame } from './framing.js';
 import { actionFrame, createAnimatedMaterial, cycleFrame, updateAnimatedMap } from './animation.js';
 
 const phrases = Object.fromEntries(Object.keys(TUNES).map(id => [id, songPhrase(id)]));
@@ -540,7 +541,7 @@ export function createWorld(container) {
     tear.name = 'fairy-tear'; tear.center.set(.5, .5); tear.visible = false;
     const tearGlow = sprite(maps.glow, target.x, target.z, 1.1, 1.1, 2.5, { color: '#c5f5ff', opacity: 0, blending: THREE.AdditiveBlending });
     tearGlow.center.set(.5, .5); tearGlow.visible = false;
-    return { id: target.id, object, glow, halo, tear, tearGlow, index: i, learned: false, tearAge: 4, from: new THREE.Vector3() };
+    return { id: target.id, object, glow, halo, tear, tearGlow, index: i, from: new THREE.Vector3() };
   });
   const homeHalo = mesh(new THREE.RingGeometry(1.2, 1.26, 48), material('#fff0bb', { transparent: true, opacity: .45, side: THREE.DoubleSide, depthWrite: false }), HOME.x, .07, HOME.z);
   homeHalo.rotation.x = -Math.PI / 2;
@@ -557,7 +558,7 @@ export function createWorld(container) {
 
   // The front and right walls are cut away so every family member stays visible.
   activeGroup = house;
-  const roomWood = solidMaterial('#d0ab79', { map: woodMap }), roomEdge = solidMaterial('#8e7456', { map: woodMap });
+  const roomWood = solidMaterial('#e0c09a', { map: woodMap }), roomEdge = solidMaterial('#8e7456', { map: woodMap });
   const plaster = material('#ffffff', { map: plasterMap }), linen = solidMaterial('#e9dcc0');
   const roomWidth = HOUSE_BOUNDS.maxX - HOUSE_BOUNDS.minX;
   const roomDepth = HOUSE_BOUNDS.maxZ - HOUSE_BOUNDS.minZ;
@@ -609,7 +610,14 @@ export function createWorld(container) {
   const john = HOUSE_TARGETS[0], cot = furniture.cot;
   const johnFigure = sprite(painted.actions[9], john.x, john.z, 3.3, 3.3, .07, { animated: true });
   const johnShadow = shadow(john.x, john.z, 1.7, 1, .6);
-  const aldoCot = sprite(maps.aldoCot, cot.x, cot.z, cot.radius * 2.4, cot.radius * 1.89, .07);
+  const aldoCot = sprite(maps.aldoCot[0], cot.x, cot.z, cot.radius * 2.4, cot.radius * 1.89, .07);
+  const blanket = mesh(new THREE.BoxGeometry(.8, .12, .6), material('#b9cfc0'), cot.x + 1.6, .085, cot.z - .6);
+  blanket.name = 'folded-baby-blanket';
+  const trayX = john.x - 1.6, trayZ = john.z + .1;
+  const tray = mesh(new THREE.BoxGeometry(1.5, .1, .85), roomEdge, trayX, .95, trayZ);
+  tray.name = 'john-bowl-tray';
+  for (const x of [-.55, .55]) for (const z of [-.25, .25]) mesh(new THREE.BoxGeometry(.1, .9, .1), roomEdge, trayX + x, .45, trayZ + z);
+  const bowlProps = [0, 1].map(i => mesh(new THREE.CylinderGeometry(.3, .2, .18, 24), linen, trayX, 1.1 + i * .15, trayZ));
   const cotShadow = shadow(cot.x, cot.z, cot.radius * 2.35, cot.radius * 1.72, .45);
   const familyIndicator = sprite(maps.conversation, john.x, john.z, .65, .65, 3.05);
   const percy = sprite(painted.cat[0], HOUSE_CAT.x, HOUSE_CAT.z, 1.05, 1.05, .03, { animated: true });
@@ -635,7 +643,7 @@ export function createWorld(container) {
   mesh(new THREE.BoxGeometry(.6, .04, .1), solidMaterial('#aab6a2'), prep.x + .2, 1.67, prep.z - .25);
   mesh(new THREE.BoxGeometry(.24, .07, .13), roomEdge, prep.x + .58, 1.68, prep.z - .25);
   shadow(stove.x, stove.z, 2.7, 1.6, .5);
-  const tile = solidMaterial('#779b8e'), iron = solidMaterial('#465953');
+  const tile = solidMaterial('#8aa89a', { map: plasterMap }), iron = solidMaterial('#465953');
   mesh(new THREE.BoxGeometry(2, 1.8, 1.5), tile, stove.x, .94, stove.z);
   mesh(new THREE.BoxGeometry(2.12, .12, 1.62), iron, stove.x, 1.9, stove.z);
   for (let y = .35; y < 1.8; y += .38) mesh(new THREE.BoxGeometry(2.02, .018, .03), linen, stove.x, y, stove.z + .76);
@@ -675,7 +683,7 @@ export function createWorld(container) {
     const herb = mesh(new THREE.SphereGeometry(.12, 12, 8), solidMaterial(leaf % 2 ? '#77916a' : '#94a575'), x + Math.sin(leaf * 2) * .12, 3.3 - leaf * .16, -7.66);
     herb.scale.set(.8, 1.6, .6);
   }
-  mesh(new THREE.BoxGeometry(.04, 1.7, 1.1), linen, -9.8, 2.65, -2);
+  mesh(new THREE.BoxGeometry(.04, 1.7, 1.1), material('#fff3d8', { map: clothMap }), -9.8, 2.65, -2);
   for (const y of [1.96, 2.1, 3.25, 3.39]) mesh(new THREE.BoxGeometry(.06, .08, 1.04), material('#af5949'), -9.76, y, -2);
   const houseMarker = mesh(new THREE.RingGeometry(.82, .91, 48), material('#fff2bc', { side: THREE.DoubleSide, transparent: true, opacity: .85, depthWrite: false }), -6, .075, 0);
   houseMarker.rotation.x = -Math.PI / 2;
@@ -690,10 +698,14 @@ export function createWorld(container) {
     mote.name = 'song-mote'; mote.center.set(.5, .5); mote.visible = false; return mote;
   });
   const hanaShadow = shadow(START.x, START.z, 1.7, 1, .8);
-  const radiance = sprite(maps.glow, START.x, START.z, 5.8, 6.2, 1.8, { color: '#ffe8a2', blending: THREE.AdditiveBlending, opacity: 0 });
+  const radiance = sprite(maps.glow, START.x, START.z, 5.8, 6.2, 1.8, { color: FAIRIES[0].color, blending: THREE.AdditiveBlending, opacity: 0 });
   radiance.center.set(.5, .5);
-  const crownHalo = sprite(maps.glow, START.x, START.z, 3.2, 3.2, 2.7, { color: '#fff4c0', blending: THREE.AdditiveBlending, opacity: 0 });
+  const crownHalo = sprite(maps.glow, START.x, START.z, 3.2, 3.2, 2.7, { color: FAIRIES[1].color, blending: THREE.AdditiveBlending, opacity: 0 });
   crownHalo.center.set(.5, .5);
+  const crownPetals = FAIRIES.map((fairy, i) => {
+    const petal = sprite(maps.glow, START.x, START.z, .22, .38, 2.7, { color: fairy.color, opacity: .8 });
+    petal.name = 'forest-crown-accent'; return petal;
+  });
   const familyFinale = createFamilyFinale(scene, painted, maps.shadow);
   activeGroup = outdoors;
   // Soft motes use one draw call, even on small screens.
@@ -722,6 +734,7 @@ export function createWorld(container) {
 
   const focus = new THREE.Vector3(-8, 0, 18);
   const desiredFocus = new THREE.Vector3();
+  let hanaStance = 0;
   const cameraOffset = new THREE.Vector3();
   const projectedInteraction = new THREE.Vector3(), projectedEdge = new THREE.Vector3();
   const projectedPlayer = new THREE.Vector3(), projectedBase = new THREE.Vector3(), projectedTop = new THREE.Vector3();
@@ -730,6 +743,7 @@ export function createWorld(container) {
   let width = 1, height = 1, cameraDistance = 32, elapsedWalk = 0;
   let previousScene = 'outdoors', previousPhase = 'intro', previousDance = false, transformationTime = 0;
   let previousGame = null;
+  let sceneTime = 0;
 
   function resize() {
     width = Math.max(container.clientWidth, 1); height = Math.max(container.clientHeight, 1);
@@ -739,7 +753,9 @@ export function createWorld(container) {
   }
   resize();
 
-  function update(game, dt, time) {
+  function update(game, dt, time, moment = null, frozen = false) {
+    if (!frozen) sceneTime += dt;
+    time = sceneTime;
     const resetPerformance = previousGame !== game;
     previousGame = game;
     const player = game.player || START;
@@ -758,20 +774,33 @@ export function createWorld(container) {
     scene.background.set(indoors ? '#c3ad8b' : '#b7c9b0');
     scene.fog.color.copy(scene.background);
     desiredFocus.set(intro ? (mobile ? 0 : -2) : player.x,
-      won ? 1.5 : .8,
+      won ? -2.8 : .8, // Keep supper above the chooser, with the same focus throughout the reveal.
       intro ? 15 : player.z - .4);
     if (dancing) desiredFocus.set(0, mobile ? 2.4 : 3.4, 0);
-    const changedScene = previousScene !== (indoors ? 'house' : 'outdoors') || (intro && previousPhase !== 'intro') || dancing !== previousDance;
-    const factor = reducedMotion.matches || changedScene ? 1 : 1 - Math.exp(-Math.min(dt, .1) * (intro ? 2 : 5));
+    const animal = !indoors && CREATURES.find(subject => subject.id === game.conversation);
+    const fairyId = game.activeSong?.kind === 'learn' ? game.activeSong.targetId
+      : moment?.kind === 'fairy-gift' && !moment.focusReleased ? moment.subjectId : null;
+    const care = indoors && !game.conversation && moment?.kind.startsWith('aldo-');
+    const watchingJohn = indoors && moment?.kind === 'john-bowls' && !player.moving && Math.hypot(player.x - john.x, player.z - john.z) < 2.3;
+    const subject = animal || FAIRIES.find(subject => subject.id === fairyId) || (care ? cot : null);
+    const framing = !won && subject ? encounterFrame(player, subject, width, height, Boolean(animal)) : null;
+    if (framing) desiredFocus.set(framing.x, framing.y, framing.z);
+    const changedScene = resetPerformance || previousScene !== (indoors ? 'house' : 'outdoors') || (intro && previousPhase !== 'intro') || dancing !== previousDance;
+    const factor = frozen && !resetPerformance && !reducedMotion.matches ? 0 : reducedMotion.matches || changedScene ? 1 : 1 - Math.exp(-Math.min(dt, .1) * (intro ? 2 : 5));
     focus.lerp(desiredFocus, factor);
     const danceDistance = Math.max(22, 9.8 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect));
-    const targetDistance = dancing ? danceDistance : intro ? (mobile ? 36 : 38) : won ? 27 : mobile ? 28 : 32;
+    const targetDistance = framing ? framing.distance : dancing ? danceDistance : intro ? (mobile ? 36 : 38) : won ? 27 : mobile ? 28 : 32;
     cameraDistance = THREE.MathUtils.lerp(cameraDistance, targetDistance, factor);
     cameraOffset.set(cameraDistance * Math.cos(Math.PI / 6) * Math.SQRT1_2, cameraDistance * .5,
       cameraDistance * Math.cos(Math.PI / 6) * Math.SQRT1_2);
     camera.position.copy(focus).add(cameraOffset); camera.lookAt(focus); camera.updateMatrixWorld();
     hana.position.set(player.x, .07, player.z);
     hanaShadow.position.set(player.x, .055, player.z);
+    // Ease the visible stance while leaving walking and interaction coordinates alone.
+    const stance = watchingJohn ? 1.1 : animal ? (player.x - player.z <= animal.x - animal.z ? -.6 : .6) : 0;
+    hanaStance = THREE.MathUtils.lerp(hanaStance, stance, factor);
+    hana.position.x += hanaStance; hana.position.z -= hanaStance;
+    hanaShadow.position.x = hana.position.x; hanaShadow.position.z = hana.position.z;
     if (player.moving && !reducedMotion.matches) elapsedWalk += dt;
     const walkPhase = elapsedWalk * 1.5;
     const frame = player.moving && !reducedMotion.matches ? Math.floor(walkPhase * painted.walkFrameCount) % painted.walkFrameCount : 0;
@@ -796,9 +825,10 @@ export function createWorld(container) {
     const singFrame = !sounding ? (responseTime < 0 ? 0 : painted.singFrameCount - 1) : reducedMotion.matches ? 2 : cycleFrame(responseTime, 3, painted.singFrameCount);
     const songTarget = performance && (performance.kind === 'learn' ? FAIRIES : SONG_SITES).find(target => target.id === performance.targetId);
     const singLeft = songTarget && songTarget.x - songTarget.z < player.x - player.z;
-    const hanaMap = transformed ? painted.actions[8] : performance ? painted.sing[singFrame + (singLeft ? painted.singFrameCount : 0)]
+    const careFrame = care ? reducedMotion.matches ? 3 : Math.min(3, Math.floor(moment.elapsed / .28)) : 0;
+    const hanaMap = transformed ? painted.actions[8] : won ? painted.actions[7] : care ? painted.care[careFrame] : watchingJohn ? painted.idle[6] : animal ? painted.idle[player.x - player.z <= animal.x - animal.z ? 0 : 6] : performance ? painted.sing[singFrame + (singLeft ? painted.singFrameCount : 0)]
       : action ? actionMap : player.moving || direction > 1 ? painted.walk[direction * painted.walkFrameCount + frame] : painted.idle[idleFrame + (direction === 1 ? 6 : 0)];
-    updateAnimatedMap(hana.material, hanaMap, time, reducedMotion.matches || resetPerformance);
+    updateAnimatedMap(hana.material, hanaMap, time, reducedMotion.matches || resetPerformance || frozen);
     if (player.moving && !reducedMotion.matches) hana.position.y += Math.abs(Math.sin(walkPhase * Math.PI * 2)) * .045;
     hana.position.y += lift;
     const goddessScale = 1 + THREE.MathUtils.smoothstep(transformation, .45, .9) * .12;
@@ -815,7 +845,11 @@ export function createWorld(container) {
     // John takes his seat at the table as soon as Hana starts serving.
     const seated = won || action?.kind === 'serve';
     updateAnimatedMap(johnFigure.material, seated ? painted.actions[11]
+      : moment?.kind === 'john-bowls' ? painted.bowls[reducedMotion.matches ? 3 : actionFrame(moment.elapsed / moment.duration, 4)]
       : game.conversation === 'john' ? painted.actions[10] : painted.idle[3 + idleFrame], time, reducedMotion.matches || resetPerformance);
+    aldoCot.material.map = maps.aldoCot[ moment?.kind === 'aldo-finger' ? reducedMotion.matches ? 2 : moment.elapsed < .7 ? 0 : moment.elapsed < 1.6 ? 1 : 2 : 0 ];
+    const bowlsProgress = moment?.kind === 'john-bowls' ? reducedMotion.matches ? 1 : moment.elapsed / moment.duration : game.houseStep > 0 ? 1 : 0;
+    bowlProps.forEach(bowl => { bowl.visible = bowlsProgress >= .75; });
     johnFigure.scale.y = 3.3 * (1 + breath);
     johnFigure.position.set(seated ? table.x - 2 : john.x, .07, seated ? table.z + .4 : john.z);
     const catNear = Math.hypot(player.x - HOUSE_CAT.x, player.z - HOUSE_CAT.z) < 3;
@@ -834,6 +868,10 @@ export function createWorld(container) {
     radiance.position.set(player.x, 1.65 + lift, player.z - .12);
     crownHalo.position.set(player.x, 2.7 + lift, player.z - .16);
     radiance.material.opacity = THREE.MathUtils.smoothstep(transformation, 0, .5) * .26;
+    crownPetals.forEach((petal, i) => {
+      petal.visible = goddess && transformed;
+      petal.position.set(player.x + (i - 1) * .24, 2.85 + lift + (i === 1 ? .12 : 0), player.z - (i - 1) * .24);
+    });
     crownHalo.material.opacity = THREE.MathUtils.smoothstep(transformation, .35, 1) * .3;
     const houseStep = Math.max(0, Math.min(HOUSE_TARGETS.length - 1, game.houseStep || 0));
     const station = HOUSE_TARGETS[houseStep];
@@ -869,17 +907,11 @@ export function createWorld(container) {
     }
     for (const target of fairyObjects) {
       const learned = collectedTears.includes(target.id);
-      if (resetPerformance || indoors || !learned) target.tearAge = 4;
-      else if (!target.learned && learned) {
-        target.tearAge = 0;
-        // Start at the fairy’s cheek, then descend and arc toward the open jar.
-        target.from.copy(target.object.position); target.from.y += 1.85;
-      }
-      target.learned = learned;
-      target.tearAge = Math.min(4, target.tearAge + Math.max(0, dt));
-      jarAge = Math.min(jarAge, target.tearAge);
-      const gift = target.tearAge / 2.8;
-      target.tear.visible = target.tearGlow.visible = !indoors && gift < 1;
+      const giftAge = moment?.kind === 'fairy-gift' && moment.subjectId === target.id ? moment.elapsed : 4;
+      jarAge = Math.min(jarAge, giftAge);
+      target.from.set(FAIRIES[target.index].x, 2.85, FAIRIES[target.index].z);
+      const gift = giftAge / 2.8;
+      target.tear.visible = target.tearGlow.visible = !indoors && gift < 1 && !reducedMotion.matches;
       if (target.tear.visible) {
         const flight = THREE.MathUtils.smoothstep(gift, .22, .88);
         if (gift < .88 && !reducedMotion.matches) receivingTear = true;
@@ -907,7 +939,7 @@ export function createWorld(container) {
     }
     const jarCount = Math.max(0, Math.min(3, collectedTears.length - Number(receivingTear)));
     tearJar.material.map = jarMaps[jarCount][Number(receivingTear)];
-    tearJar.visible = !indoors && jarAge < (reducedMotion.matches ? 2.8 : 3.5);
+    tearJar.visible = !indoors && jarAge < 3.5;
     const tuck = reducedMotion.matches ? 0 : THREE.MathUtils.smoothstep(jarAge, 2.8, 3.5);
     tearJar.position.x = THREE.MathUtils.lerp(tearJar.position.x, player.x + .12, tuck);
     tearJar.position.z = THREE.MathUtils.lerp(tearJar.position.z, player.z + .12, tuck);

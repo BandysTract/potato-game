@@ -450,3 +450,31 @@ for (const interrupt of ['movement', 'cancel', 'pause', 'mute', 'restart', 'disp
     });
   });
 }
+
+test('only the indoor lullaby reaches the voice consumer and resumes the unplayed woodland phrase', async () => {
+  const { createMoment, advanceMoment } = await import('../src/moments.js');
+  await withAudio(async (audio, context) => {
+    const game = gameState(); game.scene = 'house'; game.houseStep = 2;
+    const folds = () => context.sources().filter(source => source.wave?.imaginary.length === 33);
+    for (const kind of ['fairy-gift', 'john-bowls', 'aldo-finger']) {
+      assert.doesNotThrow(() => audio.tick(game, .01, createMoment(kind, 'aldo')));
+      assert.equal(folds().length, 0, `${kind} has no vocal source`);
+    }
+    const m = createMoment('aldo-lullaby', 'aldo', 2);
+    audio.tick(game, .01, m);
+    assert.equal(folds().length, 1, 'The real household consumer must schedule Hana.');
+    const pitches=source=>source.frequency.events.filter(([kind])=>kind==='target').map(([,value])=>Math.round(69+12*Math.log2(value/440)));
+    assert.deepEqual(pitches(folds()[0]), songPhrase('woodland').notes.filter(n=>n.note!==null).map(n=>n.note));
+    assert.equal(context.nodes[1].gain.events.at(-1)[1], .05);
+    context.advance(1); advanceMoment(m, 1); audio.tick(game,.05,m);
+    setLanguage(game,'cs');audio.tick(game,.05,m);assert.equal(folds().length,1);
+    audio.setPaused(true);context.advance(2);audio.tick(game,0,m);assert.equal(m.elapsed,1);
+    audio.setPaused(false);audio.tick(game,0,m);assert.equal(folds().length,2);
+    const remaining=songPhrase('woodland').notes.filter(n=>n.note!==null&&n.at+n.duration>1).map(n=>n.note);
+    assert.deepEqual(pitches(folds()[1]),remaining);
+    audio.setEnabled(false);advanceMoment(m,1);audio.setEnabled(true);audio.tick(game,0,m);assert.equal(folds().length,3);
+    context.advance(20);advanceMoment(m,18);audio.tick(game,.05,m);audio.tick(game,.05,null);
+    assert.equal(folds().length,3,'A stalled frame must not restart an expired voice.');
+    assert.equal(game.tears.length,0);assert.equal(game.houseStep,2);
+  });
+});

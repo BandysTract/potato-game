@@ -1,4 +1,10 @@
 export const CS = Object.freeze({
+  'Hana brings supper to John while Aldo rests nearby.': 'Hana přináší Johnovi večeři. Aldo odpočívá poblíž.',
+  'Hana hums to Aldo.': 'Hana brouká Aldovi.',
+  'Stay a while, or keep walking.': 'Můžeš chvíli zůstat nebo jít dál.',
+  'John: “Shall I put on a song?”': 'John: „Pustím nám písničku?“',
+  'Hana: “Or shall we see what the forest brought home?”': 'Hana: „Nebo se podíváme, co nám les přinesl domů?“',
+
   'Scene select': 'Výběr scény',
   'Close scene select': 'Zavřít výběr scény',
   'Study a scene': 'Prohlédni si scénu',

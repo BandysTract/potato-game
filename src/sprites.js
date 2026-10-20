@@ -106,7 +106,7 @@ function basket(c, x = 141, y = 188) {
   c.restore();
 }
 
-function aldoCot() {
+function aldoCot(handPose = 0) {
   return texture(384, 300, c => {
     // Aldo lies on his back on a flat mattress, inside a cot with raised rails.
     const wood = gradient(c, 70, 90, 310, 270, ['#e0c391', '#b58c58', '#886d49']);
@@ -125,7 +125,7 @@ function aldoCot() {
     paintPath(c, 'M137 164 Q142 168 148 163', null, '#ae725c', 1.1);
     ellipse(c, 130, 160, 4, 2, '#cc8e7666');
     paintPath(c, 'M177 146 Q169 139 160 144 L162 150 Q170 148 175 156Z', '#e2b48f');
-    hand(c, 159, 143, -1.35, '#e6ba97', true, .62);
+    hand(c, handPose === 1 ? 156 : 159, handPose === 1 ? 137 : handPose === 2 ? 146 : 143, handPose === 1 ? -1.8 : -1.35, '#e6ba97', handPose !== 2, .62);
     paintPath(c, 'M177 159 Q171 164 178 169 Q185 173 192 168', '#e4b895', '#ba967880', .8);
     for (const x of [102, 146, 190, 234, 278, 322]) line(c, [[x, 173 - (x - 102) * .11], [x, 252 - (x - 102) * .11]], wood, 8);
     line(c, [[94, 181], [331, 155]], wood, 13);
@@ -339,7 +339,7 @@ function potato() {
 
 export function createSpriteTextures() {
   const maps = {
-    aldoCot: aldoCot(),
+    aldoCot: [aldoCot(), aldoCot(1), aldoCot(2)],
     fir: [0, 1, 2].map(fir),
     birch: [0, 1].map(birch),
     flowers: flowers('cream'),

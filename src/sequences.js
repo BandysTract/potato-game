@@ -73,6 +73,7 @@ export function createSequenceGame(id, language = 'cs') {
   game.ending = id === 'ending-goddess' ? 'goddess' : 'dance';
   game.finaleTime = 0;
   game.dancePlaying = false;
-  game.player = { x: 0, z: 2.5, facing: 1, direction: 0, moving: false };
+  const supper = HOUSE_TARGETS.find(target => target.id === 'serve');
+  game.player = { x: supper.x, z: supper.z, facing: 1, direction: 0, moving: false };
   return game;
 }

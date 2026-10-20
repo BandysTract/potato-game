@@ -430,7 +430,7 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
       if (paused) silence();
       volume();
     },
-    tick(game) {
+    tick(game, _dt, moment = null) {
       if (!canPlay()) {
         if (scoreStart !== null || [...voices].some(voice => !voice.cancelled)) silence();
         return;
@@ -442,7 +442,8 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
       }
       if (finished) return;
       scheduleMusic(scoreFor(game));
-      const performance = game.phase === 'playing' && game.scene !== 'house' ? game.activeSong : null;
+      const performance = game.phase !== 'playing' ? null : game.scene !== 'house' ? game.activeSong
+        : moment?.kind === 'aldo-lullaby' && moment.songId === 'woodland' && moment.elapsed < moment.duration ? moment : null;
       if (performance !== lastPerformance) schedulePerformance(performance);
       const singing = Boolean(performance);
       if (ducked !== singing) {

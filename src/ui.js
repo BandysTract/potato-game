@@ -79,7 +79,7 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
           <div class="basket-count potato-count">${icon('potato')}<span><strong data-potato-count>0 <span>/ 6</span></strong><span>${l('Potatoes')}</span></span></div>
           <div class="basket-count tear-count">${icon('jar')}<span><strong data-tear-count>0 <span>/ 3</span></strong><span>${l('Fairy tears')}</span></span></div>
         </div>
-        <div class="song-inventory" aria-label="${l('Learned songs')}">${SONGS.map((song) => `<span role="img" data-inventory-song="${song.id}" title="${l(song.name)}">${icon(songSymbols[song.id])}<span class="song-inventory-name">${l(song.name)}</span></span>`).join('')}</div><div class="house-progress" hidden><strong data-house-progress></strong><div class="house-progress-stops" aria-hidden="true">${HOUSE_TARGETS.map((_, index) => `<i data-house-progress-stop="${index}"></i>`).join('')}</div></div>
+        <div class="song-inventory" aria-label="${l('Learned songs')}">${SONGS.map((song) => `<span role="img" data-inventory-song="${song.id}" title="${l(song.name)}">${icon(songSymbols[song.id])}<span class="song-inventory-name">${l(song.name)}</span></span>`).join('')}</div><div class="house-progress" hidden><strong data-house-progress></strong></div>
         <div class="destination"><span class="destination-symbol">${icon('map')}</span><div><span class="eyebrow" data-goal-kicker>${l('Up ahead')}</span><strong data-goal-label>${l('Cottage garden')}</strong><span class="goal-distance" data-goal-distance>${l('A short walk away')}</span></div></div>
       </aside>
       <div class="region-label">${icon('leaf')}<span data-region>${l('Cottage garden')}</span></div>
@@ -110,7 +110,7 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
     <section class="dialog-scrim overlay" data-overlay="songs" role="dialog" aria-modal="true" aria-labelledby="songs-title" hidden><div class="dialog parchment songs-dialog"><div class="dialog-language">${languageButton}</div><button class="dialog-close icon-button" data-action="close" type="button" aria-label="${l('Close songs')}">${icon('close')}</button><span class="eyebrow">${l('Learned songs')}</span><h2 id="songs-title" data-initial-focus tabindex="-1">${l('Choose a song')}</h2><p data-song-site></p><div class="song-choices">${SONGS.map((song) => `<button class="song-choice" data-song-choice="${song.id}" type="button" disabled>${icon(songSymbols[song.id])}<span><strong>${l(song.name)}</strong><span>${l(song.effect)}</span><span class="song-lock-hint" data-song-hint="${song.id}">${l('Learn from {name}', { name: song.teacher })}</span></span>${icon('arrow')}</button>`).join('')}</div><p class="small-note" data-song-stop></p></div></section>
     <section class="dialog-scrim overlay" data-overlay="dialogue" role="dialog" aria-modal="true" aria-labelledby="dialogue-title" hidden><div class="dialog parchment dialogue-dialog"><div class="dialog-language">${languageButton}</div><button class="dialog-close icon-button" data-action="dialogueFinish" type="button" aria-label="${l('Leave conversation')}">${icon('close')}</button><span class="eyebrow" data-dialogue-kicker>${l('A voice in the forest')}</span><h2 id="dialogue-title" data-initial-focus tabindex="-1">${l('A forest conversation')}</h2><div class="character-portrait" data-character-portrait hidden aria-hidden="true"></div><p class="dialogue-theme" data-dialogue-theme></p><div class="conversation-line opening-line"><span class="speaker" data-dialogue-speaker></span><p data-dialogue-opening></p></div><div class="dialogue-choices"><p class="choice-invitation">${l('Hana replies')}</p><button class="dialogue-choice" data-dialogue-choice="0" type="button"><span data-choice="0"></span>${icon('arrow')}</button><button class="dialogue-choice" data-dialogue-choice="1" type="button"><span data-choice="1"></span>${icon('arrow')}</button></div><div class="dialogue-result" tabindex="-1" hidden><div class="conversation-line hana-line"><span class="speaker">${l('Hana')}</span><p data-selected></p></div><div class="conversation-line"><span class="speaker" data-reply-speaker></span><p data-reply></p></div><div class="conversation-line reflection-line"><span class="speaker">${l('Hana')}</span><p data-reflection></p></div><button class="button primary" data-action="dialogueFinish" type="button"><span data-dialogue-continue>${l('Continue walking')}</span> ${icon('arrow')}</button></div></div></section>
     <section class="dialog-scrim overlay" data-overlay="admin" role="dialog" aria-modal="true" aria-labelledby="admin-title" aria-describedby="admin-description" hidden><div class="dialog parchment scene-selector"><div class="dialog-language">${languageButton}</div><button class="dialog-close icon-button" data-action="close" data-initial-focus type="button" aria-label="${l('Close scene select')}">${icon('close')}</button><span class="eyebrow">${l('Study a scene')}</span><h2 id="admin-title">${l('Scene select')}</h2><p id="admin-description">${l('Choose a scene to start with the songs and supplies it needs. Choosing replaces your current progress. Close to return without changing anything.')}</p>${sceneSelectorMarkup(language)}</div></section>
-    <section class="dialog-scrim overlay" data-overlay="endingChoice" role="dialog" aria-modal="true" aria-labelledby="ending-choice-title" hidden><div class="dialog parchment"><div class="dialog-language">${languageButton}</div><span class="eyebrow">${l('After supper')}</span><h2 id="ending-choice-title" data-initial-focus tabindex="-1">${l('How should the evening end?')}</h2><div class="song-choices"><button class="song-choice" data-ending="dance" type="button">${icon('home')}<span><strong>${l('Family dance')}</strong><span>${l('John plays Karel Gott, and everyone joins in.')}</span></span>${icon('arrow')}</button><button class="song-choice" data-ending="goddess" type="button">${icon('tear')}<span><strong>${l('Slavic goddess')}</strong><span>${l('Hana rises in a glow of light.')}</span></span>${icon('arrow')}</button></div><button class="button secondary" data-action="admin" type="button">${l('Scene select')}</button></div></section>
+    <section class="dialog-scrim overlay" data-overlay="endingChoice" role="dialog" aria-modal="true" aria-labelledby="ending-choice-title" hidden><div class="dialog parchment supper-choice"><div class="dialog-language">${languageButton}</div><span class="eyebrow">${l('After supper')}</span><h2 id="ending-choice-title" data-initial-focus tabindex="-1">${l('How should the evening end?')}</h2><p>${l('John: “Shall I put on a song?”')}</p><p>${l('Hana: “Or shall we see what the forest brought home?”')}</p><div class="song-choices"><button class="song-choice" data-ending="dance" type="button">${icon('home')}<span><strong>${l('Family dance')}</strong><span>${l('John plays Karel Gott, and everyone joins in.')}</span></span>${icon('arrow')}</button><button class="song-choice" data-ending="goddess" type="button">${icon('tear')}<span><strong>${l('Slavic goddess')}</strong><span>${l('Hana rises in a glow of light.')}</span></span>${icon('arrow')}</button></div><button class="button secondary" data-action="admin" type="button">${l('Scene select')}</button></div></section>
     <section class="ending-screen overlay" data-overlay="win" role="dialog" aria-modal="true" aria-labelledby="win-title" hidden><div class="ending-panel parchment"><div class="dialog-language">${languageButton}</div><div class="ending-emblem" aria-hidden="true">${icon('home')}${sprig}</div><span class="eyebrow">${l('A gift from the mountains')}</span><h2 id="win-title">${l('Supper, then a little wonder.')}</h2><p class="ending-lead">${l('The mountains have one more gift for Hana.')}</p><p>${l('The garden’s watered. Hana and her husband John eat supper as baby Aldo sleeps. Hana glows and rises, a Slavic goddess of home and harvest.')}</p><div class="ending-gifts"><span>${icon('potato')}${l('6 potatoes')}</span><span>${icon('tear')}${l('3 fairy tears')}</span></div><button class="button primary" data-action="restart" data-initial-focus type="button">${l('Walk again')} ${icon('arrow')}</button><button class="button secondary" data-action="admin" type="button">${l('Scene select')}</button></div></section>`;
 
   const find = (selector) => root.querySelector(selector);
@@ -132,7 +132,6 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
   const playerMarker = find('[data-map-player]');
   const houseMarker = find('[data-house-player]');
   const houseStops = [...root.querySelectorAll('[data-house-stop]')];
-  const houseProgressStops = [...root.querySelectorAll('[data-house-progress-stop]')];
   const mapPotatoes = [...root.querySelectorAll('[data-map-potato]')];
   const mapFairies = [...root.querySelectorAll('[data-map-fairy]')];
   const mapCreatures = [...root.querySelectorAll('[data-map-creature]')];
@@ -281,11 +280,18 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
     root.dataset.phase = game.phase;
     root.dataset.scene = game.scene;
     const indoors = game.scene === 'house';
+    const lullaby = view.moment?.kind === 'aldo-lullaby';
+    const focusedGift = view.moment?.kind === 'fairy-gift' && !view.moment.focusReleased;
+    const quietEncounter = game.activeSong?.kind === 'learn' || focusedGift;
+    root.classList.toggle('quiet-encounter', Boolean(quietEncounter));
+    root.classList.toggle('has-animal-conversation', overlay === 'dialogue' && !indoors);
+    dialogs.get('dialogue').classList.toggle('animal-conversation', !indoors);
+    find('.destination').hidden = Boolean(quietEncounter);
+    find('[data-goal-kicker]').hidden = indoors;
     find('.basket-counts').hidden = indoors;
     find('.song-inventory').hidden = indoors;
     find('.house-progress').hidden = !indoors;
-    setText('[data-house-progress]', t(language, 'Step {step} of 5', { step: game.houseStep + 1 }));
-    for (const [index, node] of houseProgressStops.entries()) { node.classList.toggle('is-done', index < game.houseStep); node.classList.toggle('is-current', index === game.houseStep); }
+    setText('[data-house-progress]', t(language, 'At home'));
     find('[data-map-outdoors]').hidden = indoors;
     find('[data-map-house]').hidden = !indoors;
     find('[data-outdoor-legend]').hidden = indoors;
@@ -366,6 +372,8 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
         dialogue.choices.forEach((choice, index) => setText(`[data-choice="${index}"]`, choice[language]));
         const wasChoosing = !dialogueChoices.hidden;
         dialogueChoices.hidden = Boolean(selected); dialogueResult.hidden = !selected;
+        find('.opening-line').hidden = Boolean(selected) && !indoors;
+        if (!selected || wasChoosing) find('.dialogue-dialog').scrollTop = 0;
         if (selected) {
           setText('[data-selected]', selected[language]);
           setText('[data-reply]', selected.reply[language]);
@@ -380,7 +388,7 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
     } else previousDialogue = '';
     setText('[data-region]', placeName(language, view.region || 'Cottage garden'));
     setText('[data-goal-kicker]', t(language, indoors ? 'Next at home' : allGifts ? 'Time to head home' : 'Up ahead'));
-    setText('[data-goal-label]', placeName(language, view.goal?.label || (allGifts ? 'Hana’s cottage' : t(language, 'Follow the blue trail'))));
+    setText('[data-goal-label]', lullaby ? t(language, 'Hana hums to Aldo.') : placeName(language, view.goal?.label || (allGifts ? 'Hana’s cottage' : t(language, 'Follow the blue trail'))));
     setText('[data-goal-distance]', t(language, view.goal?.distance < 3 ? 'You’re close' : view.goal?.distance < 9 ? 'Nearby' : 'A little farther along'));
     setText('[data-map-objective]', indoors ? t(language, HOUSE_ACTIVITIES[game.houseStep].label) : allGifts ? t(language, 'Your basket is full. Return to Hana’s cottage to make supper.') : t(language, '{potatoes} of 6 potatoes · {tears} of 3 fairy tears. Gather every gift, then return to the cottage.', { potatoes, tears }));
     playerMarker.setAttribute('transform', `translate(${Math.max(BOUNDS.minX, Math.min(BOUNDS.maxX, game.player.x))} ${Math.max(BOUNDS.minZ, Math.min(BOUNDS.maxZ, game.player.z))})`);
@@ -411,6 +419,8 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
       detail = [phase, stopInstruction].filter(Boolean).join(' ');
       action = 'Sing';
     }
+    else if (focusedGift) { title = game.message; }
+    else if (lullaby && nearby?.id === 'aldo') { title = 'Hana hums to Aldo.'; detail = 'Stay a while, or keep walking.'; }
     else if (nearby?.type === 'potato' && !game.potatoes.includes(nearby.id)) { title = 'A potato for supper'; detail = 'Press E to gather'; canInteract = true; }
     else if (nearby?.type === 'fairy') { title = t(language, nearby.learned ? '{name} remembers your song' : 'Sing with {name}', { name: nearby.name }); detail = nearby.learned ? 'Song learned' : 'Press E to sing'; action = 'Sing'; canInteract = !nearby.learned; }
     else if (nearby?.type === 'songSite') { title = placeName(language, nearby.name); detail = nearby.completed ? 'Restored' : 'Press E to choose a song'; action = 'Choose a song'; canInteract = !nearby.completed; }
@@ -426,6 +436,7 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
     }
     interaction.hidden = !title || !playable;
     interaction.classList.toggle('is-singing', singing);
+    interaction.classList.toggle('is-moment', Boolean(focusedGift || lullaby));
     setText('[data-interaction-title]', t(language, title)); setText('[data-interaction-detail]', t(language, detail));
     songTrack.hidden = !singing; find('.song-note').hidden = !singing;
     const progress = Math.max(0, Math.min(1, game.activeSong?.progress || 0));
@@ -433,7 +444,8 @@ function createLocalizedUI(root, onAction, language, heldInputs) {
     touchAction.disabled = !canInteract || !playable;
     setText('.touch-action span', t(language, action)); touchAction.setAttribute('aria-label', t(language, action));
     if (touchAction.disabled && actionPointers.size) { actionPointers.clear(); touchAction.classList.remove('is-held'); onAction('touchInteract', false); }
-    const message = game.messageTime > 0 ? game.message || '' : '';
+    const message = game.activeSong?.kind === 'learn' ? '' : game.messageTime > 0 ? game.message || '' : '';
+    toast.classList.toggle('visually-hidden', Boolean(focusedGift));
     if (message !== previousMessage) { toast.textContent = message; toast.hidden = !message; previousMessage = message; }
   }
   for (const direction of directionPointers.values()) find(`[data-direction="${direction}"]`).classList.add('is-held');

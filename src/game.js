@@ -180,7 +180,7 @@ function completeAction(game, action) {
     setMessage(game, 'Percy purrs and leans into your hand.');
   } else {
     setMessage(game, HOUSE_ACTIVITIES[game.houseStep].message, {}, 7);
-    if (action.kind === 'serve') { game.phase = 'won'; game.player.x = 0; game.player.z = 2.5; }
+    if (action.kind === 'serve') { game.phase = 'won'; const supper = HOUSE_TARGETS.find(target => target.id === 'serve'); game.player.x = supper.x; game.player.z = supper.z; }
     else game.houseStep += 1;
   }
 }

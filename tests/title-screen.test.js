@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import * as gameModel from '../src/game.js';
+import { createMoment, advanceMoment } from '../src/moments.js';
+import { HOUSE_ACTIVITIES } from '../src/dialogues.js';
 import { regionAt, CREATURES, FAIRIES, HOME, HOUSE_START, HOUSE_TARGETS, POTATOES, SONGS, SONG_SITES } from '../src/data.js';
 import { t } from '../src/i18n.js';
 import { createSequenceGame } from '../src/sequences.js';
@@ -71,7 +73,7 @@ function entryPoint({ soundInitThrows = false, reducedMotion = false, random = M
   const finale = { playbackTime: null, getPlaybackTime() { return this.playbackTime; }, update() {}, pause() {}, dispose() {} };
   const worldTimes = [];
   runInNewContext(source, {
-    ...gameModel, createGame(language) { return { ...gameModel.createGame(language, random), ending }; }, createSequenceGame, t, regionAt, SONGS, SONG_SITES, window, document,
+    ...gameModel, createMoment, advanceMoment, HOUSE_ACTIVITIES, createGame(language) { return { ...gameModel.createGame(language, random), ending }; }, createSequenceGame, t, regionAt, SONGS, SONG_SITES, window, document,
     createAudio(onChange, onSamples) { changes = onChange; sampleStatus = onSamples; return audio; },
     createUI(_root, onAction) { action = onAction; return { update(currentGame, currentView) { game = currentGame; view = currentView; }, dispose() {} }; },
     createFinale() { return finale; },
@@ -762,4 +764,127 @@ for (const ending of ['dance', 'goddess']) test(`supper lets the player choose $
     app.action('restart');
     assert.equal(app.game.ending, null, 'A new walk must offer both endings again.');
   } finally { app.dispose(); }
+});
+
+function jumpTo(app, id) { app.action('admin'); app.action('jump', id); }
+function finishCare(app, choice) {
+  jumpTo(app, 'aldo'); app.frame(0); app.window.fire('keydown', {code:'KeyE'}); app.frame(20);
+  app.window.fire('keyup', {code:'KeyE'});
+  if (choice !== null) app.action('dialogueChoice',choice);
+  app.action('dialogueFinish');
+}
+
+test('real entry point keeps John independent and cancels Aldo care on movement without changing supplies', () => {
+  const app=entryPoint();jumpTo(app,'john');app.frame(0);app.window.fire('keydown',{code:'KeyE'});app.frame(20);
+  app.action('dialogueFinish');assert.equal(app.view.moment.kind,'john-bowls');
+  app.window.fire('keydown',{code:'KeyW'});app.frame(100);assert.equal(app.view.moment.kind,'john-bowls');
+  app.frame(2600);assert.equal(app.view.moment,null);assert.equal(app.game.houseStep,1);app.dispose();
+  for (const choice of [0,1,null]) {
+    const care=entryPoint();finishCare(care,choice);
+    assert.equal(care.game.houseStep,2);
+    if(choice===null) assert.equal(care.view.moment,null);
+    else {
+      assert.equal(care.view.moment.kind,choice===1?'aldo-lullaby':'aldo-finger');
+      const before=JSON.stringify([care.game.potatoes,care.game.tears,care.game.learnedSongs,care.game.restoredSites]);
+      care.window.fire('keydown',{code:'KeyW'});care.frame(100);
+      assert.equal(care.view.moment,null);
+      assert.equal(JSON.stringify([care.game.potatoes,care.game.tears,care.game.learnedSongs,care.game.restoredSites]),before);
+    }
+    care.dispose();
+  }
+});
+
+test('lullaby defers guidance before the first redraw and preserves identity across language, guides, and focus', () => {
+  const app=entryPoint();finishCare(app,1);
+  const moment=app.view.moment;
+  assert.equal(app.game.message,'');app.frame(200);assert.ok(moment.elapsed>0);
+  app.action('language','en');assert.equal(app.view.moment,moment);
+  let time=200;
+  for (const panel of ['pause','help','map','admin']) {
+    app.action(panel);const elapsed=moment.elapsed;app.frame(time+=600);assert.equal(moment.elapsed,elapsed,panel);
+    app.action('close');assert.equal(app.view.moment,moment);
+  }
+  app.window.fire('blur');const elapsed=moment.elapsed;app.frame(time+=1000);assert.equal(moment.elapsed,elapsed);
+  app.window.fire('focus');app.action('resume');app.frame(time+=200);assert.ok(moment.elapsed>elapsed);
+  app.frame(time+=10000);assert.equal(app.view.moment,null);assert.match(app.game.message,/prepare/);
+  app.dispose();
+});
+
+test('John pauses on focus loss during Aldo dialogue without a pause overlay', () => {
+  const app=entryPoint();jumpTo(app,'john');app.frame(0);
+  app.window.fire('keydown',{code:'KeyE'});app.frame(20);app.window.fire('keyup',{code:'KeyE'});app.action('dialogueFinish');
+  const moment=app.view.moment;
+  // Walk across the clear aisle with real movement before John's action ends.
+  app.window.fire('keydown',{code:'KeyD'});app.window.fire('keydown',{code:'KeyS'});
+  let time=20;
+  for(let i=0;i<42;i++)app.frame(time+=50);
+  app.window.fire('keyup',{code:'KeyD'});app.window.fire('keyup',{code:'KeyS'});
+  app.window.fire('keydown',{code:'KeyE'});app.frame(time+=20);
+  assert.equal(app.game.conversation,'aldo');assert.equal(app.view.overlay,'dialogue');assert.equal(app.view.moment,moment);
+  const elapsed=moment.elapsed;assert.ok(elapsed>0&&elapsed<moment.duration);
+  app.window.fire('blur');app.frame(time+=1000);
+  assert.equal(app.view.overlay,'dialogue');assert.equal(moment.elapsed,elapsed);
+  app.window.fire('focus');app.frame(time+=50);assert.ok(moment.elapsed>elapsed);app.dispose();
+});
+
+test('goddess reveal and its completion panel pause together on focus loss', () => {
+  const app=entryPoint();jumpTo(app,'ending-goddess');app.frame(0);app.frame(50);
+  assert.equal(app.view.overlay,'reveal');app.window.fire('blur');
+  let time=50;for(let i=0;i<100;i++)app.frame(time+=50);
+  assert.equal(app.view.overlay,'reveal','A frozen rise must not open its completion panel.');
+  app.window.fire('focus');for(let i=0;i<74;i++)app.frame(time+=50);
+  assert.equal(app.view.overlay,'win');app.dispose();
+});
+
+test('a displayed gift receipt does not reappear after expiry or movement and never clears a newer message', () => {
+  for(const end of ['expiry','movement','new-message']) {
+    const app=entryPoint();jumpTo(app,'fairy-ridge');app.frame(0);
+    app.window.fire('keydown',{code:'KeyE'});app.frame(20);app.window.fire('keyup',{code:'KeyE'});
+    let time=20+app.game.activeSong.duration*1000;app.frame(time);
+    assert.ok(app.game.message);assert.equal(app.view.moment.kind,'fairy-gift');
+    if(end==='new-message')gameModel.setMessage(app.game,'A newer message',{},7);
+    if(end==='movement'){app.window.fire('keydown',{code:'KeyD'});app.frame(time+=50);assert.equal(app.view.moment.focusReleased,true);}
+    else app.frame(time+=3500);
+    assert.equal(app.game.message,end==='new-message'?'A newer message':'',end);
+    assert.equal(app.game.tears.length,1);app.dispose();
+  }
+});
+
+test('scene replacement, disposal, and graphics failure retire pending care and late audio readiness', () => {
+  for (const end of ['jump','dispose','graphics']) {
+    const app=entryPoint();finishCare(app,1);assert.ok(app.view.moment);
+    if(end==='jump') {jumpTo(app,'fairy-ridge');app.audio.completeEnable();app.frame(1000);assert.equal(app.view.moment,null);assert.equal(app.game.scene,'outdoors');}
+    else if(end==='dispose') {app.dispose();assert.equal(app.audio.disposed,true);}
+    else {app.renderer.fire('webglcontextlost');assert.equal(app.audio.disposed,true);}
+  }
+});
+
+test('real fairy receipts have one shared gift and prepared scenes do not invent one', () => {
+  const app=entryPoint();jumpTo(app,'fairy-ridge');app.frame(0);app.window.fire('keydown',{code:'KeyE'});app.frame(20);app.window.fire('keyup',{code:'KeyE'});
+  const song=app.game.activeSong;assert.ok(song);app.frame(20+song.duration*1000);
+  assert.equal(app.view.moment.kind,'fairy-gift');assert.equal(app.view.moment.subjectId,'fairy-ridge');assert.equal(app.game.tears.length,1);
+  const gift=app.view.moment;app.window.fire('keydown',{code:'KeyD'});app.frame(100+song.duration*1000);assert.equal(gift.focusReleased,true);
+  jumpTo(app,'garden-woodland');app.frame(1000+song.duration*1000);assert.equal(app.view.moment,null);app.dispose();
+});
+
+test('a real walk from Jitřenka to the deer ends the gift before conversation without changing its reward', () => {
+  const app = entryPoint(); jumpTo(app, 'fairy-ridge'); app.frame(0);
+  app.window.fire('keydown', { code: 'KeyE' }); app.frame(20); app.window.fire('keyup', { code: 'KeyE' });
+  let time = 20 + app.game.activeSong.duration * 1000; app.frame(time);
+  assert.equal(app.view.moment.kind, 'fairy-gift');
+  const inventory = JSON.stringify([app.game.tears, app.game.learnedSongs]);
+  // The canonical start is south of Jitřenka. Two ordinary screen directions
+  // reach the deer before the 3.5-second presentation expires.
+  for (let i = 0; i < 42 && Math.hypot(app.game.player.x - 11, app.game.player.z + 30) > 1.2; i++) {
+    const dx = 11 - app.game.player.x, dz = -30 - app.game.player.z;
+    for (const code of ['KeyW','KeyA','KeyS','KeyD']) app.window.fire('keyup', {code});
+    app.window.fire('keydown', { code: dx + dz < 0 ? 'KeyW' : 'KeyS' });
+    app.window.fire('keydown', { code: dx - dz < 0 ? 'KeyA' : 'KeyD' });
+    app.frame(time += 50);
+  }
+  for (const code of ['KeyW','KeyA','KeyS','KeyD']) app.window.fire('keyup', {code});
+  assert.ok(app.view.moment, 'The gift must still be active at the interruption.');
+  app.window.fire('keydown', {code:'KeyE'}); app.frame(time += 50);
+  assert.equal(app.game.conversation, 'deer'); assert.equal(app.view.moment, null);
+  assert.equal(JSON.stringify([app.game.tears, app.game.learnedSongs]), inventory); app.dispose();
 });

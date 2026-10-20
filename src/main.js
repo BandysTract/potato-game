@@ -7,6 +7,8 @@ import { regionAt } from './data.js';
 import { t } from './i18n.js';
 import { createSequenceGame } from './sequences.js';
 import { createFinale } from './finale.js';
+import { createMoment, advanceMoment } from './moments.js';
+import { HOUSE_ACTIVITIES } from './dialogues.js';
 
 let game = createGame();
 let overlay = 'intro';
@@ -18,6 +20,7 @@ let soundError = '';
 let sampleFallback = false;
 let dialogueChoice = null;
 let endingTime = 0;
+let moment = null;
 const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 const keys = new Set();
 let touch = { x: 0, y: 0, interact: false };
@@ -45,6 +48,21 @@ function syncAudioPause() {
   if (overlay !== 'dance' || !audioFocused || document.hidden) finale.pause();
 }
 
+function clearGiftReceipt() {
+  if (game.messageKey === 'You learned {song}. A fairy tear is safe in your jar.') setMessage(game, '', {}, 0);
+}
+
+function clearMoment(releaseInstruction = false) {
+  const previous = moment;
+  moment = null;
+  if (previous?.kind === 'fairy-gift') clearGiftReceipt();
+  if (releaseInstruction && previous?.kind === 'aldo-lullaby' && game.scene === 'house'
+      && game.phase === 'playing' && game.houseStep === previous.nextStep && !game.actionAnimation && !game.conversation) {
+    setMessage(game, HOUSE_ACTIVITIES[1].message, {}, 7);
+  }
+  audio.tick(game, 0, moment);
+}
+
 function clearInput(preserveActivity = false) {
   keys.clear();
   touch = { x: 0, y: 0, interact: false };
@@ -64,7 +82,7 @@ function showOverlay(next, preserveActivity = false) {
 
 function drawUI() {
   ui.update(game, {
-    overlay, sound, soundError: soundError ? t(game.language, soundError) : '', nearby: getNearby(game), goal: getGoal(game), region: t(game.language, game.scene === 'house' ? 'Inside the cottage' : regionAt(game.player)),
+    overlay, moment, sound, soundError: soundError ? t(game.language, soundError) : '', nearby: getNearby(game), goal: getGoal(game), region: t(game.language, game.scene === 'house' ? 'Inside the cottage' : regionAt(game.player)),
     sampleFallback: sampleFallback ? t(game.language, 'The instruments couldn’t load. Music will use synthesized sounds. You can keep exploring.') : '',
     dialogue: { creatureId: game.conversation, index: game.conversationIndex, choice: dialogueChoice },
   });
@@ -123,6 +141,7 @@ function onAction(action, value) {
     const next = createSequenceGame(value, game.language);
     if (!next) return;
     clearInput();
+    clearMoment();
     game = next;
     dialogueChoice = null;
     returnOverlay = null;
@@ -140,6 +159,7 @@ function onAction(action, value) {
     game.ending = value;
     beginEnding();
   } else if (action === 'restart' && game.phase === 'won' && ['win', 'dance'].includes(overlay)) {
+    clearMoment();
     game = createGame(game.language);
     startGame(game);
     endingTime = 0;
@@ -169,9 +189,18 @@ function onAction(action, value) {
     syncLanguage();
     drawUI();
   } else if (action === 'dialogueFinish' && overlay === 'dialogue') {
+    const subject = game.conversation, choice = dialogueChoice, stepBefore = game.houseStep;
     finishConversation(game);
     dialogueChoice = null;
     returnOverlay = null;
+    if (game.scene === 'house' && game.houseStep === stepBefore + 1) {
+      clearMoment();
+      if (subject === 'john') moment = createMoment('john-bowls', subject);
+      else if (subject === 'aldo' && choice !== null) {
+        moment = createMoment(choice === 1 ? 'aldo-lullaby' : 'aldo-finger', subject, game.houseStep);
+        if (choice === 1) setMessage(game, '', {}, 0);
+      }
+    }
     showOverlay(null);
   } else if (action === 'close') closeOverlay();
   else if (action === 'sound') {
@@ -204,7 +233,7 @@ function onKeyDown(event) {
     event.preventDefault();
     if (event.repeat) return;
     if (overlay) closeOverlay();
-    else if (game.activeSong) { cancelSong(game); audio.tick(game); drawUI(); }
+    else if (game.activeSong) { cancelSong(game); audio.tick(game, 0, moment); drawUI(); }
     else onAction('pause');
   } else if (event.code === 'KeyM' && game.phase !== 'won') {
     event.preventDefault();
@@ -249,6 +278,7 @@ document.addEventListener('visibilitychange', onVisibility);
 
 function graphicsError(artwork = false) {
   stopped = true;
+  moment = null;
   clearInput();
   audio.setPaused(true);
   audio.dispose();
@@ -293,6 +323,7 @@ try {
 
 let previousTime;
 function beginEnding() {
+  clearMoment();
   endingTime = 0;
   if (!game.ending) {
     showOverlay('endingChoice');
@@ -312,21 +343,38 @@ function animate(timestamp) {
   const elapsed = previousTime === undefined ? 0 : Math.max(0, (timestamp - previousTime) / 1000);
   const dt = Math.min(.05, elapsed);
   previousTime = timestamp;
-  if (!overlay) {
+  const visiblePlay = audioFocused && !document.hidden;
+  const expiredMoment = moment && visiblePlay && (!overlay || overlay === 'dialogue' && moment.kind === 'john-bowls')
+    && advanceMoment(moment, elapsed) ? moment : null;
+  if (!overlay && visiblePlay) {
     const potatoesBefore = game.potatoes.length;
     const tearsBefore = game.tears.length;
     const sceneBefore = game.scene;
+    const songBefore = game.activeSong;
+    const actionBefore = game.actionAnimation;
+    const moveX = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft')) + touch.x;
+    const moveY = Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp')) + touch.y;
+    const quietCot = moment?.kind === 'aldo-lullaby' && getNearby(game)?.id === 'aldo';
     step(game, {
-      x: Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft')) + touch.x,
-      y: Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp')) + touch.y,
-      interact: pendingInteraction || keys.has('KeyE') || touch.interact,
+      x: moveX, y: moveY,
+      interact: !quietCot && (pendingInteraction || keys.has('KeyE') || touch.interact),
     }, elapsed);
     if (dt > 0) pendingInteraction = false;
     if (game.scene !== sceneBefore) {
+      clearMoment();
       clearInput();
       syncLanguage();
     }
-    audio.tick(game, dt);
+    const newInteraction = game.conversation || game.songSite || game.activeSong && game.activeSong !== songBefore
+      || game.actionAnimation && game.actionAnimation !== actionBefore;
+    if (moment && newInteraction && moment.kind !== 'john-bowls') clearMoment();
+    if (moment && Math.hypot(moveX, moveY) > .01) {
+      if (moment.kind === 'fairy-gift') { moment.focusReleased = true; clearGiftReceipt(); }
+      else if (moment.kind.startsWith('aldo-')) clearMoment(true);
+    }
+    if (moment && moment === expiredMoment) clearMoment(true);
+    if (game.tears.length > tearsBefore && songBefore?.kind === 'learn') moment = createMoment('fairy-gift', songBefore.targetId);
+    audio.tick(game, dt, moment);
     if (game.potatoes.length > potatoesBefore) audio.collect('potato');
     if (game.tears.length > tearsBefore) audio.collect('fairy');
     if (game.songSite) { returnOverlay = null; showOverlay('songs', true); }
@@ -338,8 +386,11 @@ function animate(timestamp) {
     if (game.phase === 'won') {
       beginEnding();
     }
-  } else if (overlay === 'dialogue' || overlay === 'intro') audio.tick(game, dt);
-  else if (overlay === 'reveal') {
+  } else if (overlay === 'dialogue' || overlay === 'intro') {
+    if (moment && moment === expiredMoment) clearMoment(true);
+    audio.tick(game, dt, moment);
+  }
+  else if (overlay === 'reveal' && visiblePlay) {
     endingTime += dt;
     if (reducedMotion?.matches || endingTime >= 3.6) showOverlay('win');
   } else if (overlay === 'dance' && audioFocused && !document.hidden) {
@@ -347,7 +398,8 @@ function animate(timestamp) {
     const playbackTime = finale.getPlaybackTime();
     if (playbackTime !== null) game.danceTime = playbackTime;
   }
-  world.update(game, overlay === 'admin' ? 0 : dt, timestamp / 1000);
+  const frozen = !visiblePlay || Boolean(overlay) && !['intro', 'dialogue', 'win', 'reveal', 'dance', 'endingChoice'].includes(overlay);
+  world.update(game, frozen ? 0 : dt, timestamp / 1000, moment, frozen);
   finale.update(game, { overlay, sound, focused: audioFocused && !document.hidden }, world.projectorBounds?.());
   drawUI();
   frame = requestAnimationFrame(animate);
@@ -364,6 +416,7 @@ window.addEventListener('resize', onResize);
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     stopped = true;
+    moment = null;
     cancelAnimationFrame(frame);
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('click', onIntroInteraction, true);

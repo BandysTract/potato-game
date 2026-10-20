@@ -158,3 +158,19 @@ test('both endings start from a complete supper and a fresh reveal', () => {
     assert.equal(game.conversation, null);
   }
 });
+
+test('real serving and both direct endings share the supper position within interaction reach', () => {
+  const game = createSequenceGame('cook');
+  interact(game); completeAction(game);
+  // Walk along the clear aisle from the stove, then approach the serving target.
+  for (let i = 0; i < 16; i++) step(game, { x: 1, y: 1 }, .05);
+  const before = { ...game.player }, target = HOUSE_TARGETS.find(item => item.id === 'serve');
+  assert.equal(getNearby(game).id, 'serve'); interact(game); completeAction(game);
+  assert.equal(game.phase, 'won'); assert.equal(game.ending, null);
+  assert.equal(game.player.x, target.x); assert.equal(game.player.z, target.z);
+  assert.ok(Math.hypot(before.x - target.x, before.z - target.z) <= 2);
+  for (const ending of ['ending-dance', 'ending-goddess']) {
+    const direct = createSequenceGame(ending);
+    assert.equal(direct.player.x, game.player.x); assert.equal(direct.player.z, game.player.z);
+  }
+});

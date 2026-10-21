@@ -1,5 +1,6 @@
 import { scoreFor, SCORES } from './music.js';
 import { songPhrase } from './songs.js';
+import { PRACTICE_SPOTS } from './data.js';
 
 const frequency = (note) => 440 * 2 ** ((note - 69) / 12);
 // Rounded, closed-mouth resonances keep the humming gentle rather than brassy.
@@ -9,7 +10,23 @@ const BREATH_LEVELS = [.014, .012, .01, .018];
 // Open ah/oh/oo vowels distinguish the fairy’s call from Hana’s closed-mouth hum.
 const FAIRY_VOWELS = [[650, 1100, 2700, 3500], [480, 950, 2500, 3350], [580, 1350, 2800, 3600], [400, 850, 2400, 3200]];
 const FAIRY_LEVELS = [.38, .35, .37, .32];
-export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {}) {
+const lastNotes = (id, count) => songPhrase(id).notes.filter(event => event.note !== null).slice(-count).map(event => event.note);
+// Short cues carry the forest's motifs into the house and answer practice
+// songs. Each belongs to one action or moment and lists times from its start.
+function cueEvents(cue) {
+  if (cue.kind === 'prepare') return [60, 60, 60, 60, 62, 64].map((note, i) => ({ at: .15 + i * .27, note: note - 12, beats: .07, level: .05 }));
+  if (cue.kind === 'cook') return [79, 79, 81, 79].map((note, i) => ({ at: [.4, 1.2, 2, 2.6][i], note, beats: .25, level: .035 }));
+  if (cue.kind === 'john-bowls') return [76, 79].map((note, i) => ({ at: 1.75 + i * .15, note, beats: .3, level: .04 }));
+  const spot = PRACTICE_SPOTS.find(item => item.id === cue.subjectId);
+  if (!spot) return [];
+  if (spot.response === 'bird') return lastNotes(spot.songId, 3).map((note, i) => ({ at: .3 + i * .14, note: note + 12, beats: .12, level: .045 }));
+  if (spot.response === 'reflection') return [84, 88, 91, 96].map((note, i) => ({ at: .2 + i * .25, note, beats: .6, level: .03 }));
+  // The meadow animal answers in a low voice, with its last note a little flat.
+  return lastNotes(spot.songId, 2).map((note, i) => ({ at: .4 + i * .4, note: note - 12 - (i ? .6 : 0), beats: .38, level: .06, part: 'violin' }));
+}
+// onStartStatus reports 'waiting' before a resume and 'unavailable' when the
+// current request can't start. Only the latest request may report.
+export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {}, onStartStatus = () => {}) {
   let context;
   let master;
   let music;
@@ -39,6 +56,7 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
   let finished = false;
   let singer = null;
   let ducked = false;
+  let lastCue = null;
   const voices = new Set();
   const canPlay = () => context?.state === 'running' && enabled && !paused && !disposed;
 
@@ -89,6 +107,7 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
     resetRoom();
     singer = null;
     ducked = false;
+    lastCue = null;
     scoreStart = null;
     scoreEvent = 0;
     transition = null;
@@ -316,6 +335,17 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
     voice.sources.forEach(source => source.stop(end + .02));
   }
 
+  // Schedule only the unplayed part, so a resumed action continues rather than restarts.
+  function scheduleCue(cue) {
+    voices.forEach(voice => { if (voice.group === 'cue') retire(voice); });
+    lastCue = cue;
+    if (!cue) return;
+    const now = context.currentTime + .025;
+    for (const event of cueEvents(cue)) {
+      if (event.at >= cue.elapsed) note(event.note, event.beats, event.level, now + event.at - cue.elapsed, event.part || 'effect', 'cue');
+    }
+  }
+
   function scheduleMusic(selected) {
     const now = context.currentTime;
     // Let the recordings supply the opening notes, but never wait indefinitely.
@@ -325,17 +355,23 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
     if (selected !== currentScore && transition?.score !== selected) {
       const cycle = currentScore.beats * currentScore.beat;
       const cycleStart = scoreStart + Math.floor(Math.max(0, horizon - scoreStart) / cycle) * cycle;
-      const boundary = currentScore.boundaries.find(beat => cycleStart + beat * currentScore.beat >= horizon);
-      transition = { score: selected, at: cycleStart + (boundary ?? currentScore.beats) * currentScore.beat };
+      // Another stage of the same tune enters at the next full loop, without a fade.
+      // A different tune changes at the next measure boundary and fades.
+      const sameTune = selected.tuneId !== undefined && selected.tuneId === currentScore.tuneId;
+      const boundary = sameTune ? null : currentScore.boundaries.find(beat => cycleStart + beat * currentScore.beat >= horizon);
+      const at = cycleStart + (boundary ?? currentScore.beats) * currentScore.beat;
+      transition = { score: selected, at: sameTune && at - cycle >= horizon ? at - cycle : at, fade: !sameTune };
     } else if (selected === currentScore) transition = null;
     if (transition && now >= transition.at - 1) {
       // Fill the old measure only up to the boundary. The new score starts there.
       scheduleUntil(Math.min(horizon, transition.at));
       if (horizon >= transition.at) {
         const at = transition.at;
-        themeGain.gain.setValueAtTime(1, Math.max(now, at - .4));
-        themeGain.gain.linearRampToValueAtTime(0, at);
-        themeGain.gain.linearRampToValueAtTime(1, at + .4);
+        if (transition.fade) {
+          themeGain.gain.setValueAtTime(1, Math.max(now, at - .4));
+          themeGain.gain.linearRampToValueAtTime(0, at);
+          themeGain.gain.linearRampToValueAtTime(1, at + .4);
+        }
         currentScore = transition.score;
         scoreStart = transition.at;
         scoreEvent = 0;
@@ -370,8 +406,9 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
       }
       if (!context) {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return false;
-        context = new AudioContext();
+        if (!AudioContext) { requested = false; onStartStatus('unavailable'); return false; }
+        try { context = new AudioContext(); }
+        catch { requested = false; onStartStatus('unavailable'); return false; }
         master = context.createGain();
         master.gain.value = 0;
         master.connect(context.destination);
@@ -413,12 +450,17 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
       // A blocked resume can remain pending indefinitely. Keep the control
       // usable and report sound on only after the audio clock is running.
       if (context.state !== 'running') {
-        Promise.resolve(context.resume()).then(() => {
+        onStartStatus('waiting');
+        let resumed;
+        try { resumed = Promise.resolve(context.resume()); }
+        catch { resumed = Promise.reject(new Error('Resume failed')); }
+        resumed.then(() => {
           if (request === enableRequest && !disposed) syncEnabled();
         }).catch(() => {
           if (request !== enableRequest || disposed) return;
           requested = false;
           syncEnabled();
+          onStartStatus('unavailable');
         });
       }
       syncEnabled();
@@ -430,7 +472,7 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
       if (paused) silence();
       volume();
     },
-    tick(game) {
+    tick(game, _dt, moment = null) {
       if (!canPlay()) {
         if (scoreStart !== null || [...voices].some(voice => !voice.cancelled)) silence();
         return;
@@ -442,8 +484,14 @@ export function createAudio(onEnabledChange = () => {}, onSampleStatus = () => {
       }
       if (finished) return;
       scheduleMusic(scoreFor(game));
-      const performance = game.phase === 'playing' && game.scene !== 'house' ? game.activeSong : null;
+      const performance = game.phase !== 'playing' ? null : game.scene !== 'house' ? game.activeSong
+        : moment?.kind === 'aldo-lullaby' && moment.songId === 'woodland' && moment.elapsed < moment.duration ? moment : null;
       if (performance !== lastPerformance) schedulePerformance(performance);
+      const action = game.phase === 'playing' && game.scene === 'house' ? game.actionAnimation : null;
+      const cue = game.phase !== 'playing' ? null
+        : ['practice-response', 'john-bowls'].includes(moment?.kind) && moment.elapsed < moment.duration ? moment
+          : ['prepare', 'cook'].includes(action?.kind) ? action : null;
+      if (cue !== lastCue) scheduleCue(cue);
       const singing = Boolean(performance);
       if (ducked !== singing) {
         ducked = singing;

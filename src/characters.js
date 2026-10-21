@@ -120,11 +120,15 @@ export function createPaintedCharacters() {
   // The repair strip has wider room for Hana’s crown and bouquet.
   const headroom = atlas('/assets/characters/actions-headroom.png', 3, 1, frame => frame === 0 ? 'hana' : 'john', 0, [0, .42, .67, 1]);
 
+  const hanaDance = atlas('/assets/characters/hana-dance-storybook.png', 4, 2, () => 'hana', 8, null, null, true, true);
+  const johnDance = atlas('/assets/characters/john-dance-storybook.png', 4, 2, () => 'john', 0, null, null, true, true);
+  const household = atlas('/assets/characters/family-care-storybook.png', 4, 2, frame => frame < 4 ? 'hana' : 'john', 0, null, [0, 455 / 887, 1], false, true);
+  const care = household.slice(0, 4), bowls = household.slice(4);
   const cat = atlas('/assets/characters/percy.png', 3, 2);
   // Rows are Hana, then John. Frames 6 to 8 mirror Hana's idle frames to face left.
   const idle = atlas('/assets/characters/idle.png', 3, 2, frame => Math.floor(frame / 3), 3);
   const foliage = atlas('/assets/characters/foliage.png', 2, 2);
-  return { walk, walkFrameCount, gather, gatherPickupProgress: 5 / gather.length, sing, singFrameCount, pet, petFrameCount, fairies, creatures, creatureFrameCount, actions: [...actions.slice(0, 8), ...headroom, actions[11]], cat, idle, foliage, ready: Promise.all(jobs), dispose() {
+  return { hanaDance, johnDance, care, bowls, walk, walkFrameCount, gather, gatherPickupProgress: 5 / gather.length, sing, singFrameCount, pet, petFrameCount, fairies, creatures, creatureFrameCount, actions: [...actions.slice(0, 8), ...headroom, actions[11]], cat, idle, foliage, ready: Promise.all(jobs), dispose() {
     disposed = true;
     textures.forEach(texture => texture.dispose());
   } };

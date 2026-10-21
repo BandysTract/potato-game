@@ -1,10 +1,11 @@
-import { BOUNDS, CREATURES, FAIRIES, HOME, HOUSE_BOUNDS, HOUSE_OBSTACLES, HOUSE_START, HOUSE_TARGETS, OBSTACLES, POTATOES, START, SONGS, SONG_SITES, HOUSE_CAT } from './data.js';
-import { DIALOGUES, HOUSE_ACTIVITIES } from './dialogues.js';
+import { BOUNDS, CREATURES, FAIRIES, HOME, HOUSE_BOUNDS, HOUSE_OBSTACLES, HOUSE_START, HOUSE_TARGETS, OBSTACLES, POTATOES, PRACTICE_SPOTS, START, SONGS, SONG_SITES, HOUSE_CAT } from './data.js';
+import { HOUSE_ACTIVITIES } from './dialogues.js';
+import { QUIZZES, findQuiz } from './quizzes.js';
 import { placeName, t } from './i18n.js';
 import { performanceDuration } from './songs.js';
 
 const SPEED = 5;
-const PLAYER_RADIUS = 0.45;
+export const PLAYER_RADIUS = 0.45;
 const REACH = 2;
 const MAX_STEP = 0.05;
 
@@ -37,8 +38,10 @@ export function createGame(language = 'cs', random = Math.random) {
     tears: [],
     conversation: null,
     conversationIndex: null,
-    dialogueNext: Object.fromEntries(CREATURES.map(({ id }) => [id, Math.floor(random() * DIALOGUES[id].length)])),
+    dialogueNext: Object.fromEntries(CREATURES.map(({ id }) => [id, Math.floor(random() * QUIZZES[id].length)])),
     talked: [],
+    quizSession: null,
+    quizCompleted: [],
     message: '',
     messageKey: '',
     messageValues: {},
@@ -67,14 +70,38 @@ export function finishConversation(game) {
         game.houseStep += 1;
         setMessage(game, activity.message, {}, 7);
       }
-    } else {
+    } else if (game.quizSession?.answerId) {
+      // Correct and incorrect answers finalize alike. An unanswered close keeps the question.
+      const { quizId } = game.quizSession;
+      if (!game.quizCompleted.includes(quizId)) game.quizCompleted.push(quizId);
       if (!game.talked.includes(game.conversation)) game.talked.push(game.conversation);
-      game.dialogueNext[game.conversation] = (game.conversationIndex + 1) % DIALOGUES[game.conversation].length;
+      game.dialogueNext[game.conversation] = (game.conversationIndex + 1) % QUIZZES[game.conversation].length;
     }
     game.conversation = null;
     game.conversationIndex = null;
+    game.quizSession = null;
   }
   return game;
+}
+
+// Opens the animal's current question without consuming it.
+export function openQuiz(game, creatureId) {
+  const quizzes = QUIZZES[creatureId];
+  if (!quizzes) return false;
+  game.conversation = creatureId;
+  game.conversationIndex = game.dialogueNext[creatureId];
+  game.quizSession = { quizId: quizzes[game.conversationIndex].id, answerId: null };
+  return true;
+}
+
+// Accepts only the first allowed answer to the named, active outdoor quiz.
+export function answerQuiz(game, optionId, quizId) {
+  const session = game.quizSession;
+  if (game.phase !== 'playing' || game.scene !== 'outdoors' || !session || session.answerId !== null || session.quizId !== quizId) return false;
+  const quiz = findQuiz(session.quizId);
+  if (!quiz || QUIZZES[game.conversation]?.[game.conversationIndex] !== quiz || !quiz.options.some(option => option.id === optionId)) return false;
+  session.answerId = optionId;
+  return true;
 }
 
 function potatoAvailable(game, id) {
@@ -99,6 +126,7 @@ export function getNearby(game) {
     ...POTATOES.filter(({ id }) => !game.potatoes.includes(id) && potatoAvailable(game, id)).map(potato => ({ ...potato, type: 'potato' })),
     ...FAIRIES.map(fairy => ({ ...fairy, type: 'fairy', learned: game.tears.includes(fairy.id) })),
     ...CREATURES.map(creature => ({ ...creature, type: 'creature' })),
+    ...PRACTICE_SPOTS.map(spot => ({ ...spot, type: 'practice', learned: game.learnedSongs.includes(spot.songId) })),
     ...SONG_SITES.filter(site => !site.potatoId || !game.restoredSites.includes(site.id) || game.potatoes.includes(site.potatoId))
       .map(site => ({ ...site, type: 'songSite', ready: true, completed: game.restoredSites.includes(site.id) })),
     { ...HOME, type: 'home', ready: giftsReady(game) },
@@ -153,6 +181,8 @@ export function chooseSong(game, songId) {
 }
 
 function completeSong(game, performance) {
+  // Practice is presentation only: no site, tear, inventory, or household change.
+  if (performance.kind === 'practice') return;
   if (performance.kind === 'learn') {
     const song = SONGS.find(song => song.id === performance.songId);
     if (!game.learnedSongs.includes(song.id)) game.learnedSongs.push(song.id);
@@ -176,11 +206,11 @@ function completeAction(game, action) {
     if (!game.potatoes.includes(action.targetId)) game.potatoes.push(action.targetId);
     setMessage(game, 'Potato found. {count} of 6 in your basket.', { count: game.potatoes.length });
   } else if (action.kind === 'pet') {
-    game.percyPets += 1;
+    game.percyPets = Math.min(Number.MAX_SAFE_INTEGER, game.percyPets + 1);
     setMessage(game, 'Percy purrs and leans into your hand.');
   } else {
     setMessage(game, HOUSE_ACTIVITIES[game.houseStep].message, {}, 7);
-    if (action.kind === 'serve') { game.phase = 'won'; game.player.x = 0; game.player.z = 2.5; }
+    if (action.kind === 'serve') { game.phase = 'won'; const supper = HOUSE_TARGETS.find(target => target.id === 'serve'); game.player.x = supper.x; game.player.z = supper.z; }
     else game.houseStep += 1;
   }
 }
@@ -295,10 +325,13 @@ export function step(game, input = {}, dt = 0) {
     game.activeSong = { kind: 'learn', songId: song.id, targetId: nearby.id, elapsed: 0, duration: performanceDuration(song.id, 'learn'), progress: 0 };
     setMessage(game, 'Listen, then sing with {name}.', { name: nearby.name }, 7);
   } else if (nearby.type === 'songSite' && !nearby.completed) game.songSite = nearby.id;
-  else if (nearby.type === 'creature') {
-    game.conversation = nearby.id;
-    game.conversationIndex = game.dialogueNext[nearby.id];
-  } else if (nearby.type === 'home') {
+  else if (nearby.type === 'practice') {
+    const song = SONGS.find(song => song.id === nearby.songId);
+    if (!nearby.learned) setMessage(game, 'Learn the {song} from {name} first.', { song: song.name.toLowerCase(), name: song.teacher }, 6);
+    else game.activeSong = { kind: 'practice', songId: song.id, targetId: nearby.id, elapsed: 0, duration: performanceDuration(song.id, 'practice'), progress: 0 };
+  }
+  else if (nearby.type === 'creature') openQuiz(game, nearby.id);
+  else if (nearby.type === 'home') {
     if (nearby.ready) {
       game.scene = 'house';
       game.player = { ...HOUSE_START, facing: 1, direction: 0, moving: false };

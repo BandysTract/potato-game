@@ -450,3 +450,129 @@ for (const interrupt of ['movement', 'cancel', 'pause', 'mute', 'restart', 'disp
     });
   });
 }
+
+test('only the indoor lullaby reaches the voice consumer and resumes the unplayed woodland phrase', async () => {
+  const { createMoment, advanceMoment } = await import('../src/moments.js');
+  await withAudio(async (audio, context) => {
+    const game = gameState(); game.scene = 'house'; game.houseStep = 2;
+    const folds = () => context.sources().filter(source => source.wave?.imaginary.length === 33);
+    for (const kind of ['fairy-gift', 'john-bowls', 'aldo-finger']) {
+      assert.doesNotThrow(() => audio.tick(game, .01, createMoment(kind, 'aldo')));
+      assert.equal(folds().length, 0, `${kind} has no vocal source`);
+    }
+    const m = createMoment('aldo-lullaby', 'aldo', 2);
+    audio.tick(game, .01, m);
+    assert.equal(folds().length, 1, 'The real household consumer must schedule Hana.');
+    const pitches=source=>source.frequency.events.filter(([kind])=>kind==='target').map(([,value])=>Math.round(69+12*Math.log2(value/440)));
+    assert.deepEqual(pitches(folds()[0]), songPhrase('woodland').notes.filter(n=>n.note!==null).map(n=>n.note));
+    assert.equal(context.nodes[1].gain.events.at(-1)[1], .05);
+    context.advance(1); advanceMoment(m, 1); audio.tick(game,.05,m);
+    setLanguage(game,'cs');audio.tick(game,.05,m);assert.equal(folds().length,1);
+    audio.setPaused(true);context.advance(2);audio.tick(game,0,m);assert.equal(m.elapsed,1);
+    audio.setPaused(false);audio.tick(game,0,m);assert.equal(folds().length,2);
+    const remaining=songPhrase('woodland').notes.filter(n=>n.note!==null&&n.at+n.duration>1).map(n=>n.note);
+    assert.deepEqual(pitches(folds()[1]),remaining);
+    audio.setEnabled(false);advanceMoment(m,1);audio.setEnabled(true);audio.tick(game,0,m);assert.equal(folds().length,3);
+    context.advance(20);advanceMoment(m,18);audio.tick(game,.05,m);audio.tick(game,.05,null);
+    assert.equal(folds().length,3,'A stalled frame must not restart an expired voice.');
+    assert.equal(game.tears.length,0);assert.equal(game.houseStep,2);
+  });
+});
+
+test('a restoration stage waits for the next full loop and enters without a fade or repeated notes', async () => {
+  // Rejects switching variants at a measure boundary, fading a same-tune change,
+  // duplicating the old loop's last notes, or treating frame time as music time.
+  const { SCORE_VARIANTS } = await import('../src/music.js');
+  await withAudio(async (audio, context) => {
+    const game = gameState(); game.player = { x: 0, z: 0 };
+    const score = SCORE_VARIANTS.woodland[0], loop = score.beats * score.beat;
+    let wall = 0;
+    const run = (until) => { while (wall < until) { wall += 1 / 60; context.advance(wall); audio.tick(game, 1 / 60); } };
+    run(2);
+    game.restoredSites = ['woodland'];
+    run(2.5);
+    // A frozen frame and a stalled frame must not move the musical boundary.
+    for (let i = 0; i < 20; i++) audio.tick(game, 0);
+    run(loop * 2 + 1);
+    const fifths = context.sources().filter(source => source.type === 'triangle' && source.connections[0].gain.events.some(([kind, value]) => kind === 'linear' && value === .06));
+    assert.ok(fifths.length > 0, 'The new stage part must enter.');
+    assert.ok(fifths.every(source => source.startTime >= loop + .025 - 1e-9), 'The added part waits for the next full loop.');
+    assert.ok(!context.nodes.some(node => node.gain?.events.some(([kind, value]) => kind === 'linear' && value === 0)), 'Same-tune stages skip the fade.');
+    const starts = context.sources().filter(isLead).map(source => source.startTime);
+    assert.equal(new Set(starts.map(time => time.toFixed(6))).size, starts.length, 'No melody note is duplicated.');
+    const melody = score.events.filter(event => event.melody).length;
+    assert.equal(starts.filter(time => time < loop * 2 + .024).length, melody * 2, 'No melody note is skipped across the handoff.');
+    // A different tune still uses the measure boundary and its fade.
+    game.player = { x: 24, z: -10 };
+    run(wall + 4);
+    assert.ok(context.nodes.some(node => node.gain?.events.some(([kind, value]) => kind === 'linear' && value === 0)));
+  });
+});
+
+test('score variants share explicit tune ids and keep regional and animal melodies', async () => {
+  const { SCORE_VARIANTS, TITLE_SCORE, restorationStage } = await import('../src/music.js');
+  for (const [id, variants] of Object.entries(SCORE_VARIANTS)) {
+    assert.equal(variants.length, 4);
+    const melody = JSON.stringify(variants[0].events.filter(event => event.melody));
+    for (const [stage, variant] of variants.entries()) {
+      assert.equal(variant.tuneId, id); assert.equal(variant.stage, stage);
+      assert.equal(variant.beats, variants[0].beats);
+      assert.equal(JSON.stringify(variant.events.filter(event => event.melody)), melody, 'Stages never change the melody.');
+      assert.ok(variant.events.every(event => ['violin', 'clarinet', 'bass', 'tambourine'].includes(event.part)));
+      if (stage) assert.ok(variant.events.length > variants[stage - 1].events.length, 'Each stage adds a part.');
+    }
+  }
+  assert.equal(SCORES.growth.beats, 42);
+  assert.notEqual(SCORE_VARIANTS.growth[0].tuneId, TITLE_SCORE.tuneId, 'Equal durations don’t make the title the same tune.');
+  assert.equal(new Set(Object.values(ANIMAL_SCORES).map(score => score.tuneId)).size, 4);
+  for (const count of [0, 1, 2, 3]) {
+    const game = { phase: 'playing', scene: 'outdoors', player: { x: 0, z: 0 }, restoredSites: ['woodland', 'meadow', 'cottage'].slice(0, count) };
+    assert.equal(scoreFor(game), SCORE_VARIANTS.woodland[count]);
+    assert.equal(restorationStage(game), count);
+    assert.equal(scoreFor(game), scoreFor({ ...game }), 'Selection returns the same stable object, never a new score.');
+  }
+  assert.equal(scoreFor({ phase: 'playing', scene: 'house', player: { x: 0, z: 0 }, restoredSites: ['woodland', 'meadow', 'cottage'] }), SCORE_VARIANTS.growth[3]);
+});
+
+test('practice singing uses Hana’s voice once and its response cue never retriggers on redraw', async () => {
+  const { PRACTICE_SPOTS } = await import('../src/data.js');
+  const { createMoment, advanceMoment } = await import('../src/moments.js');
+  await withAudio(async (audio, context) => {
+    const game = gameState(); game.learnedSongs = ['woodland', 'growth', 'rain'];
+    const spot = PRACTICE_SPOTS[0];
+    game.player = { x: spot.x, z: spot.z + 1.3, facing: 1, direction: 2, moving: false };
+    step(game, {}, .05); step(game, { interact: true }, .05);
+    assert.equal(game.activeSong?.kind, 'practice');
+    audio.tick(game, .05);
+    const folds = () => context.sources().filter(source => source.wave?.imaginary.length === 33);
+    assert.equal(folds().length, 1, 'Practice uses Hana’s existing voice path only.');
+    for (let i = 0; i < 30; i++) audio.tick(game, 0);
+    assert.equal(folds().length, 1, 'Redraws do not restart the phrase.');
+    const cueCount = () => context.sources().filter(source => source.connections[0]?.gain?.events.some(([kind, value]) => kind === 'linear' && value === .045)).length;
+    const moment = createMoment('practice-response', spot.id);
+    audio.tick(game, 0, moment);
+    const first = cueCount();
+    assert.ok(first > 0);
+    for (let i = 0; i < 30; i++) audio.tick(game, 0, moment);
+    assert.equal(cueCount(), first, 'The same moment schedules its cue once.');
+    advanceMoment(moment, .5);
+    audio.setPaused(true); audio.setPaused(false); audio.tick(game, 0, moment);
+    assert.ok(cueCount() < first * 2, 'Resuming schedules only the unplayed part.');
+  });
+});
+
+test('household cues follow the real action and stop when it is cancelled', async () => {
+  await withAudio(async (audio, context) => {
+    const game = gameState(); game.scene = 'house'; game.houseStep = 2;
+    game.actionAnimation = { kind: 'prepare', targetId: 'prepare', elapsed: 0, duration: 1.8, progress: 0 };
+    const knocks = () => context.sources().filter(source => source.connections[0]?.gain?.events.some(([kind, value]) => kind === 'linear' && value === .05));
+    audio.tick(game, 0);
+    assert.equal(knocks().length, 6);
+    for (let i = 0; i < 40; i++) audio.tick(game, 0);
+    assert.equal(knocks().length, 6, 'Repeated ticks must not retrigger the chopping pulse.');
+    context.advance(.2);
+    game.actionAnimation = null; audio.tick(game, 0);
+    assert.ok(knocks().every(source => source.stopTime <= .25), 'A cancelled action stops its remaining knocks.');
+    assert.equal(game.houseStep, 2);
+  });
+});

@@ -60,7 +60,7 @@ export function createFamilyFinale(scene, painted, shadowMap) {
   const ringGeometry = new THREE.TorusGeometry(.09, .026, 8, 20); geometries.push(ringGeometry);
   const handle = new THREE.Mesh(ringGeometry, mat('#ab8757')); handle.name = 'projector-pull-handle'; group.add(handle);
 
-  const hana = person('dancing-hana', painted.sing[2], 3.15);
+  const hana = person('dancing-hana', painted.hanaDance[0], 3.15);
   const john = person('dancing-john', painted.actions[10], 3.3);
   const percy = person('dancing-percy', painted.cat[5], 1.45);
   const babyFrameCount = 32;
@@ -85,9 +85,12 @@ export function createFamilyFinale(scene, painted, shadowMap) {
     // danceTime belongs to actual video playback, not the page's animation clock.
     const danceTime = reducedMotion ? 0 : Math.max(0, game.danceTime || 0);
     const started = reducedMotion || game.dancePlaying || danceTime > 0;
+    const phrase = danceTime * 1.9 % 4;
     const beat = started ? Math.sin(danceTime * Math.PI * 3.8) : 0;
     const sway = started ? Math.sin(danceTime * Math.PI * 1.9) : 0;
-    const danceFrame = reducedMotion ? 2 : Math.floor(danceTime * 3.8) % 4;
+    const johnFrame = reducedMotion ? 0 : cycleFrame(danceTime, 4 / 1.9, 8);
+    const hanaFrame = reducedMotion ? 0 : cycleFrame(danceTime - 2 / 1.9, 4 / 1.9, 8);
+    const hop = started && phrase > 2.6 && phrase < 3.5 ? Math.sin((phrase - 2.6) / .9 * Math.PI) : 0;
     screen.quaternion.copy(camera.quaternion);
     const heightNow = .06 + (screenHeight - .06) * pull;
     fabric.scale.y = heightNow / screenHeight;
@@ -102,7 +105,7 @@ export function createFamilyFinale(scene, painted, shadowMap) {
     const johnY = .07 + (revealTime >= 4 ? Math.max(0, beat) * .12 : Math.sin(approach * Math.PI * 4) * .045);
     place(john, johnX, johnY, adultDepth);
     john.scale.set(3.3, johnHeight, 1);
-    updateAnimatedMap(john.material, revealTime < .9 ? painted.idle[3] : revealTime < 3.5 || started && danceFrame % 2 === 0 ? painted.actions[10] : painted.idle[3],
+    updateAnimatedMap(john.material, revealTime < .9 ? painted.idle[3] : revealTime < 3.5 ? painted.actions[10] : painted.johnDance[johnFrame],
       revealTime < 4 ? revealTime : danceTime, reducedMotion || revealTime >= 4 && !game.dancePlaying);
     john.material.rotation = revealTime >= 4 ? sway * -.07 : -pull * .045 * (1 - returnToDance);
     place(johnShadow, johnX, .065, adultDepth);
@@ -129,20 +132,19 @@ export function createFamilyFinale(scene, painted, shadowMap) {
     cord.quaternion.setFromUnitVectors(vertical, otherCorner.normalize());
 
     place(hana, 2.55 - sway * .23, .07 + Math.max(0, -beat) * .11, adultDepth);
-    const hanaFrame = reducedMotion ? 2 : cycleFrame(danceTime, 4 / 3.8, painted.singFrameCount);
-    updateAnimatedMap(hana.material, started ? painted.sing[hanaFrame + painted.singFrameCount] : painted.idle[6], danceTime, reducedMotion || !game.dancePlaying);
+    updateAnimatedMap(hana.material, painted.hanaDance[hanaFrame + 8], danceTime, reducedMotion || !game.dancePlaying);
     hana.material.rotation = sway * .08;
     hana.scale.set(3.15 * (1 + Math.abs(sway) * .025), 3.15, 1);
     place(hanaShadow, 2.55 - sway * .23, .065, adultDepth);
     place(aldo, -.75, .07, cotDepth);
     // More sampled poses preserve the original loop's duration.
     aldo.material.map = babyFrames[reducedMotion ? babyFrameCount / 4 : started ? cycleFrame(danceTime, 8 / 7.6, babyFrameCount) : 0];
-    place(percy, 1.02 + sway * .35, .03 + Math.max(0, beat) * .32, catDepth);
-    updateAnimatedMap(percy.material, painted.cat[started ? [5, 2, 5, 4][danceFrame] : 2], danceTime, reducedMotion || !game.dancePlaying);
-    percy.material.rotation = sway * -.1;
+    place(percy, 1.02 + hop * .3, .03 + hop * .32, catDepth);
+    updateAnimatedMap(percy.material, painted.cat[hop > .3 ? 5 : 2], danceTime, reducedMotion || !game.dancePlaying);
+    percy.material.rotation = hop * -.12;
     percy.scale.set(1.45, 1.45 * (1 - Math.max(0, -beat) * .06), 1);
-    place(percyShadow, 1.02 + sway * .35, .065, catDepth);
-    percyShadow.material.opacity = .58 - Math.max(0, beat) * .2;
+    place(percyShadow, 1.02 + hop * .3, .065, catDepth);
+    percyShadow.material.opacity = .58 - hop * .2;
 
     group.updateMatrixWorld(true);
     corner.set(-videoWidth / 2, videoHeight / 2, .01).applyMatrix4(screen.matrixWorld).project(camera);

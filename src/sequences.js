@@ -1,16 +1,18 @@
-import { CREATURES, FAIRIES, HOME, HOUSE_CAT, HOUSE_START, HOUSE_TARGETS, POTATOES, SONGS, SONG_SITES } from './data.js';
-import { DIALOGUES, HOUSE_ACTIVITIES } from './dialogues.js';
-import { createGame } from './game.js';
+import { CREATURES, FAIRIES, HOME, HOUSE_CAT, HOUSE_START, HOUSE_TARGETS, POTATOES, PRACTICE_SPOTS, SONGS, SONG_SITES } from './data.js';
+import { HOUSE_ACTIVITIES } from './dialogues.js';
+import { QUIZZES } from './quizzes.js';
+import { createGame, openQuiz } from './game.js';
 
-// A scene entry prepares a fresh, playable state. Conversation variants share
-// an entry so every question stays reachable without crowding the panel.
+// A scene entry prepares a fresh, playable state. Quiz variants share an
+// entry so every question stays reachable without crowding the panel.
 export const SEQUENCES = [
   { id: 'start', group: 'The forest', label: 'Start the walk', detail: 'An empty basket, near the cottage.' },
   ...FAIRIES.map((fairy) => ({ id: fairy.id, group: 'Fairy songs', label: fairy.name, detail: SONGS.find((song) => song.fairyId === fairy.id).name })),
   ...SONG_SITES.map((site) => ({ id: `garden-${site.id}`, group: 'Gardens', label: site.name, detail: 'The song and supplies are ready.' })),
+  ...PRACTICE_SPOTS.map((spot) => ({ id: spot.id, group: 'Singing spots', label: spot.name, detail: SONGS.find((song) => song.id === spot.songId).name })),
   ...CREATURES.map((creature) => ({
-    id: creature.id, group: 'Forest conversations', label: creature.englishName,
-    variants: DIALOGUES[creature.id].map((dialogue, index) => ({ id: `${creature.id}:${index}`, label: dialogue.theme })),
+    id: creature.id, group: 'Forest quizzes', label: creature.englishName,
+    variants: QUIZZES[creature.id].map((quiz, index) => ({ id: `${creature.id}:${index}`, label: quiz.title })),
   })),
   { id: 'home', group: 'At home', label: 'Enter the cottage', detail: 'All supplies and gardens are ready.' },
   ...HOUSE_ACTIVITIES.map((activity) => ({ id: activity.id, group: 'At home', label: activity.label })),
@@ -39,6 +41,14 @@ export function createSequenceGame(id, language = 'cs') {
   if (id === 'start') return game;
   const fairy = FAIRIES.find((entry) => entry.id === id);
   if (fairy) { standNear(game, fairy); return game; }
+  const spot = PRACTICE_SPOTS.find((entry) => entry.id === id);
+  if (spot) {
+    // Learned songs only. Practice needs no tear, garden, or potato.
+    game.learnedSongs = SONGS.map((song) => song.id);
+    game.tears = FAIRIES.map((entry) => entry.id);
+    standNear(game, spot);
+    return game;
+  }
   const site = SONG_SITES.find((entry) => `garden-${entry.id}` === id);
   if (site) {
     readySupplies(game);
@@ -52,9 +62,8 @@ export function createSequenceGame(id, language = 'cs') {
   if (creature) {
     standNear(game, creature);
     const index = sequence.variants.findIndex((variant) => variant.id === id);
-    game.conversation = creature.id;
-    game.conversationIndex = Math.max(0, index);
-    game.dialogueNext[creature.id] = game.conversationIndex;
+    game.dialogueNext[creature.id] = Math.max(0, index);
+    openQuiz(game, creature.id);
     return game;
   }
   readySupplies(game);
@@ -73,6 +82,7 @@ export function createSequenceGame(id, language = 'cs') {
   game.ending = id === 'ending-goddess' ? 'goddess' : 'dance';
   game.finaleTime = 0;
   game.dancePlaying = false;
-  game.player = { x: 0, z: 2.5, facing: 1, direction: 0, moving: false };
+  const supper = HOUSE_TARGETS.find(target => target.id === 'serve');
+  game.player = { x: supper.x, z: supper.z, facing: 1, direction: 0, moving: false };
   return game;
 }

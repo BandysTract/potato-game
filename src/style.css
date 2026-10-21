@@ -106,7 +106,7 @@ h1 { position: relative; margin: 0; font-family: var(--serif); font-size: clamp(
 .goal-distance { font-size: 11px; color: #6f7863; }
 .region-label { position: absolute; right: 29px; top: 92px; display: flex; gap: 7px; align-items: center; padding: 8px 11px; border: 1px solid #d6dfca; border-radius: 7px; font-size: 11px; color: #24483a; background: #faf5e9eb; }
 .region-label svg { width: 13px; height: 13px; }
-.interaction-wrap { position: absolute; bottom: 78px; left: 0; right: 0; display: flex; justify-content: center; padding: 0 20px; }
+.interaction-wrap { position: absolute; bottom: 78px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; padding: 0 20px; }
 .interaction { display: flex; align-items: center; min-width: 280px; max-width: 440px; gap: 14px; padding: 14px 19px; background: #f8f3e9f5; border: 1px solid #fffbf1; border-radius: 9px; box-shadow: 0 5px 25px #203b2c21; }
 .interaction-key { display: grid; place-items: center; width: 33px; height: 34px; font-size: 15px; flex: 0 0 auto; background: #e8ecd9; border-color: #bdc6a8; }
 .interaction-copy { display: flex; flex: 1; flex-direction: column; gap: 5px; }
@@ -419,7 +419,7 @@ h1 { position: relative; margin: 0; font-family: var(--serif); font-size: clamp(
 .ending-gifts { margin: 16px 0 12px; padding: 12px 0; }
 .ending-panel .button { margin-top: 14px; }
 @media (max-width: 700px) {
-  .ending-screen { align-items: flex-start; justify-content: center; padding: 14px; }
+  .ending-screen { align-items: flex-end; justify-content: center; padding: 14px; }
   .ending-panel { width: 340px; padding: 17px 20px; }
   .ending-emblem, .ending-gifts, .ending-panel .ending-lead, .ending-panel > .eyebrow { display: none; }
   .ending-panel h2 { font-size: 27px; margin: 8px 0 12px; }
@@ -490,7 +490,7 @@ h1 { position: relative; margin: 0; font-family: var(--serif); font-size: clamp(
 .house-progress { margin-top: 0; }
 .house-progress > strong { font-size: 19px; }
 .house-progress-stops { margin-top: 7px; }
-.interaction.is-singing .interaction-key { display: none; }
+.interaction.is-singing .interaction-key, .interaction.is-moment .interaction-key { display: none; }
 .interaction.is-singing .interaction-copy > span { display: block; }
 @media (max-width: 700px) {
   .basket-panel, #ui[data-scene='house'] .basket-panel { top: 104px; left: 12px; right: 12px; width: auto; max-width: calc(100% - 24px); padding: 8px 12px; display: block; }
@@ -528,4 +528,86 @@ h1 { position: relative; margin: 0; font-family: var(--serif); font-size: clamp(
 @media (max-height: 550px) and (pointer: coarse) {
   .game-nav .language-button { top: 44px; }
   .region-label { top: 107px; }
+}
+
+/* Encounters leave room for the painted figures without changing other modals. */
+.quiet-encounter .region-label, .quiet-encounter .control-legend { display: none; }
+.has-animal-conversation .play-surface { visibility: hidden; }
+.event-toast.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.dialog-scrim.animal-conversation { background: transparent; backdrop-filter: none; align-items: flex-end; padding: 12px; }
+.animal-conversation .dialogue-dialog { width: min(680px, 100%); max-height: 49vh; padding: 18px 24px; overflow-y: auto; }
+.animal-conversation .dialog-language { position: static; margin: 0 35px 8px 0; }
+.animal-conversation .dialogue-theme, .animal-conversation [data-dialogue-kicker] { display: none; }
+.animal-conversation h2 { font-size: 25px; margin: 0 0 8px; }
+.animal-conversation .conversation-line { margin-top: 8px; padding-top: 8px; }
+.animal-conversation .conversation-line p { font-size: 17px; line-height: 1.4; margin-bottom: 0; }
+.animal-conversation .choice-invitation { margin: 8px 0 0; }
+.animal-conversation .dialogue-choice { margin-top: 6px; padding: 10px 35px 10px 12px; }
+.animal-conversation .dialogue-result > .button { margin-top: 12px; }
+/* Animal quizzes keep the premise above the locked answers and their result. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.quiz-title { margin: 0 0 4px; font-family: var(--serif); font-size: 17px; font-style: italic; color: #687454; }
+.quiz-premise { margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-family: var(--serif); font-size: 17px; line-height: 1.45; color: #2c4434; }
+.quiz-option { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-right: 14px; }
+.quiz-option > span:first-child { flex: 1; }
+.quiz-tag { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.quiz-option:disabled { cursor: default; opacity: 1; color: #59665a; background: #f2f1e6; border-style: dashed; }
+.quiz-option.is-chosen:disabled { border-style: solid; border-color: #a58f6b; background: #f4ecdb; color: var(--ink); }
+.quiz-option.is-correct:disabled { border-style: solid; border-color: #6f9a76; background: #e3eedd; color: var(--ink); }
+.quiz-option.is-correct .quiz-tag { color: #3f6c48; }
+.quiz-result { margin-top: 10px; }
+.quiz-verdict { margin: 0 0 4px; font-family: var(--serif); font-size: 22px; font-weight: 400; color: var(--ink); }
+.quiz-verdict:focus { outline: none; }
+.quiz-feedback, .quiz-explanation { margin: 6px 0 0; font-size: 15px; line-height: 1.5; color: #2c4434; }
+.quiz-explanation { padding: 10px 12px; border-radius: 6px; background: #e9eddc; }
+.quiz-about { margin-top: 10px; font-size: 14px; }
+.quiz-about summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; color: #4f6553; }
+.quiz-about summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.quiz-source { margin: 4px 0 10px; }
+.quiz-source p { margin: 4px 0; line-height: 1.45; }
+.quiz-links { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.quiz-links a { color: #2f5f4a; }
+.quiz-result > .button { width: 100%; margin-top: 12px; }
+@media (max-width: 700px) {
+  .quiz-premise, .quiz-title { font-size: 16px; }
+  .quiz-option { flex-direction: column; gap: 2px; }
+}
+/* The folded map keeps markers and labels above its drawn ridge, trees, and creases. */
+.map-ridge { fill: #d9dcc4; stroke: #b4b998; stroke-width: .18; }
+.map-tree { fill: #b8c6a2; opacity: .85; }
+.map-fold { stroke: #b9b49a; stroke-width: .16; stroke-dasharray: .6 .4; opacity: .55; fill: none; }
+.trail-map { box-shadow: inset 0 0 0 1px #fffaf0, 0 6px 16px #3a4a3a1f; background: linear-gradient(90deg, #00000008 0 1px, transparent 1px 33.2%, #00000010 33.33%, transparent 33.6% 66.5%, #00000010 66.66%, transparent 67%), linear-gradient(#f0ecd9, #ebe5cd); }
+.ending-panel .ending-joke { font-family: var(--serif); font-size: 16px; font-style: italic; color: #4d5f45; margin: 8px 0 14px; }
+.guidance-toggle [data-guidance-state] { font-weight: 400; }
+/* Saving status: quiet text in panels, and a persistent line on the play surface. */
+.intro-actions { display: grid; gap: 10px; }
+.intro-actions .button { width: 100%; }
+.save-status { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: #4f5f50; }
+.save-status:empty { display: none; }
+/* The status banner sits under the interaction prompt in the same column, so they never overlap. */
+.save-banner { width: max-content; max-width: min(560px, calc(100% - 32px)); margin: 0; padding: 7px 12px; border-radius: 6px; background: #f7f1e5ee; border: 1px solid #d7c9a5; color: #4a4532; font-size: 12px; line-height: 1.4; text-align: center; pointer-events: none; }
+.save-banner:empty { padding: 0; border: 0; background: none; }
+.save-banner:not(:empty) { margin-top: 8px; }
+/* Short touch screens have little room above Hana, so a status sits lower and the prompt stays where it was. */
+@media (max-height: 550px) and (pointer: coarse) { .interaction-wrap:has(.save-banner:not(:empty)) { bottom: 96px; } }
+.confirm-dialog { width: min(460px, 100%); }
+.confirm-dialog h2 { font-size: 22px; line-height: 1.35; margin: 6px 0 16px; }
+.confirm-actions { display: grid; gap: 10px; }
+.confirm-actions .button, .selector-return { width: 100%; }
+.selector-return { margin: 10px 0 4px; }
+/* Sound start status sits under the in-play Sound control, apart from event toasts. */
+.sound-control { position: relative; display: inline-flex; }
+.play-sound-status { position: absolute; top: calc(100% + 6px); right: 0; width: max-content; max-width: 220px; margin: 0; padding: 6px 9px; border-radius: 6px; background: #f8f3e8f2; border: 1px solid #c8ceba; color: var(--ink); font-size: 11px; line-height: 1.35; text-align: right; pointer-events: none; }
+.play-sound-status:empty { padding: 0; border: 0; background: none; }
+[data-overlay='supper'] { background: transparent; backdrop-filter: none; align-items: flex-end; padding: 12px; }
+[data-overlay='endingChoice'] { background: transparent; backdrop-filter: none; align-items: flex-end; padding: 12px; }
+.supper-choice { width: min(620px, 100%); max-height: 48vh; padding: 18px 24px; overflow-y: auto; }
+.supper-choice h2 { font-size: 26px; }
+.supper-choice > p { margin: 5px 0; font-size: 16px; }
+@media (max-width: 700px) {
+  .animal-conversation .dialogue-dialog { padding: 14px 16px; }
+  .animal-conversation .conversation-line p { font-size: 16px; }
+}
+@media (max-height: 500px) {
+  .animal-conversation .dialogue-dialog { width: min(760px, 100%); max-height: 50vh; }
 }

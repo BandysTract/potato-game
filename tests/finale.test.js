@@ -82,12 +82,12 @@ function finale() {
   const window = { location: { origin: 'http://127.0.0.1:4173' } };
   const controller = runInNewContext(`${source}\ncreateFinale(container, onAction, onPlayback);`, {
     window, document: { head, createElement: tag => new Element(tag) }, container,
-    onAction: action => actions.push(action), onPlayback: value => playback.push(value), AbortController,
+    onAction: (action, value) => actions.push(value === undefined ? action : `${action}:${value}`), onPlayback: value => playback.push(value), AbortController,
     setTimeout(callback, delay) { timers.set(++timerId, { callback, due: now + delay }); return timerId; },
     clearTimeout(id) { timers.delete(id); },
   });
   const game = { phase: 'won', ending: 'dance', language: 'en' };
-  const view = { overlay: 'dance', focused: true, sound: false };
+  const view = { overlay: 'dance', focused: true, soundWanted: false };
   const bounds = { visible: true, left: 10, top: 20, width: 640, height: 360 };
   return {
     controller, container, head, players, playback, actions, game, view, bounds,
@@ -129,7 +129,7 @@ test('the video loads only for the dance ending after the projector is visible a
     assert.equal(app.find('[data-finale-status]').textContent, 'Loading the video…');
     await app.resolveAPI();
     assert.equal(app.players.length, 1);
-    assert.equal(app.players[0].options.videoId, 'usk0WKKoHOk');
+    assert.equal(app.players[0].options.videoId, 'DrQMROGD-EE');
     assert.equal(app.players[0].options.host, 'https://www.youtube-nocookie.com');
     assert.equal(app.players[0].options.playerVars.autoplay, 0);
   } finally { app.controller.dispose(); }
@@ -220,14 +220,14 @@ test('explicit mute is honored on readiness, changes without reloading, and surv
     const player = await ready(app);
     assert.deepEqual(player.calls.slice(0, 2), ['mute', 'play']);
     assert.equal(app.find('[data-finale-sound]').attributes['aria-pressed'], 'false');
-    app.view.sound = true; app.update();
+    app.view.soundWanted = true; app.update();
     assert.equal(player.calls.at(-1), 'unMute');
-    app.view.sound = false; app.update();
+    app.view.soundWanted = false; app.update();
     assert.equal(player.calls.at(-1), 'mute');
     app.find('[data-finale-sound]').click();
     app.find('[data-finale-admin]').click();
     app.find('[data-finale-restart]').click();
-    assert.deepEqual(app.actions, ['sound', 'admin', 'restart']);
+    assert.deepEqual(app.actions, ['sound:video', 'admin', 'restart'], 'The video control names its own output.');
     assert.equal(player.calls.at(-1), 'mute', 'Buttons delegate to the app instead of overriding its sound preference.');
     assert.equal(app.players.length, 1);
   } finally { app.controller.dispose(); }
@@ -298,7 +298,7 @@ test('video errors show a retry and YouTube fallback without starting an automat
     assert.match(app.find('[data-finale-status]').textContent, /unavailable.*try again.*YouTube/);
     assert.equal(app.find('[data-finale-play]').textContent, 'Try again');
     assert.equal(app.find('[data-finale-play]').disabled, false);
-    assert.equal(app.find('[data-finale-link]').attributes.href, 'https://www.youtube.com/watch?v=usk0WKKoHOk');
+    assert.equal(app.find('[data-finale-link]').attributes.href, 'https://www.youtube.com/watch?v=DrQMROGD-EE');
     for (let frame = 0; frame < 3; frame++) app.update();
     await Promise.resolve();
     assert.equal(app.players.length, 1, 'Frame updates must keep the error visible until an explicit retry.');

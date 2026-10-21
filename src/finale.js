@@ -1,6 +1,6 @@
 import './finale.css';
 
-export const FINALE_VIDEO_ID = 'usk0WKKoHOk';
+export const FINALE_VIDEO_ID = 'DrQMROGD-EE';
 let apiPromise;
 
 function youtubeAPI() {
@@ -43,6 +43,7 @@ const cs = {
   'Walk again': 'Znovu do lesa',
   'Watch on YouTube': 'Přehrát na YouTube',
   'Online video from YouTube': 'Online video z YouTube',
+  'Play without saving': 'Hrát bez ukládání',
 };
 
 // Kept outside the translated game panels so changing language never reloads video.
@@ -54,7 +55,8 @@ export function createFinale(container, onAction, onPlayback) {
   root.innerHTML = `<header class="finale-heading"><h1 id="finale-title"></h1><p data-finale-caption></p></header>
     <div class="projector-video" hidden><div data-video-host></div></div>
     <footer class="finale-controls parchment"><p data-finale-status role="status" aria-live="polite"></p>
-      <div class="finale-buttons"><button class="button primary" data-finale-play type="button"></button><button class="icon-button" data-finale-sound type="button"></button><button class="icon-button" data-finale-language type="button"></button><button class="icon-button" data-finale-admin type="button"></button><button class="icon-button" data-finale-restart type="button"></button></div>
+      <div class="finale-buttons"><button class="button primary" data-finale-play type="button"></button><button class="icon-button" data-finale-sound data-own-gesture type="button"></button><button class="icon-button" data-finale-language type="button"></button><button class="icon-button" data-finale-admin type="button"></button><button class="icon-button" data-finale-restart data-own-gesture type="button"></button><button class="icon-button" data-finale-unsaved data-own-gesture type="button" hidden></button></div>
+      <p class="finale-save" data-finale-save></p>
       <a href="https://www.youtube.com/watch?v=${FINALE_VIDEO_ID}" target="_blank" rel="noopener noreferrer" data-finale-link></a><span class="finale-source" data-finale-source></span>
     </footer>`;
   container.append(root);
@@ -90,6 +92,7 @@ export function createFinale(container, onAction, onPlayback) {
     text(find('[data-finale-language]'), language === 'cs' ? 'English' : 'Česky');
     text(find('[data-finale-admin]'), l('Scene select'));
     text(find('[data-finale-restart]'), l('Walk again'));
+    text(find('[data-finale-unsaved]'), l('Play without saving'));
     text(find('[data-finale-link]'), l('Watch on YouTube'));
     text(find('[data-finale-source]'), l('Online video from YouTube'));
   }
@@ -170,10 +173,12 @@ export function createFinale(container, onAction, onPlayback) {
       else { if (status === 'ended') player.seekTo(0); player.playVideo(); }
     }
   });
-  listen(find('[data-finale-sound]'), 'click', () => onAction('sound'));
+  // The video follows sound intent, independent of the paused game audio engine.
+  listen(find('[data-finale-sound]'), 'click', (event) => onAction('sound', 'video', event));
   listen(find('[data-finale-language]'), 'click', () => onAction('language'));
   listen(find('[data-finale-admin]'), 'click', () => onAction('admin'));
-  listen(find('[data-finale-restart]'), 'click', () => onAction('restart'));
+  listen(find('[data-finale-restart]'), 'click', (event) => onAction('restart', undefined, event));
+  listen(find('[data-finale-unsaved]'), 'click', (event) => onAction('playUnsaved', undefined, event));
   return {
     update(game, view, bounds) {
       if (disposed) return;
@@ -189,8 +194,11 @@ export function createFinale(container, onAction, onPlayback) {
       root.hidden = !visible;
       if (!active && wasActive) pause();
       language = game.language;
-      if (sound !== view.sound) {
-        sound = view.sound;
+      // Saving status arrives translated; a latched conflict keeps the unsaved route here.
+      text(find('[data-finale-save]'), view.saveStatus || '');
+      find('[data-finale-unsaved]').hidden = !view.offerUnsaved;
+      if (sound !== view.soundWanted) {
+        sound = view.soundWanted;
         if (ready) sound ? player.unMute() : player.mute();
       }
       screen.hidden = !visible || !bounds?.visible;

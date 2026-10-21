@@ -1,5 +1,5 @@
 import './style.css';
-import { createGame, startGame, step, getNearby, getGoal, finishConversation, setLanguage, setMessage, chooseSong, cancelSong } from './game.js';
+import { createGame, startGame, step, getNearby, getGoal, finishConversation, setLanguage, setMessage, chooseSong, cancelSong, answerQuiz } from './game.js';
 import { createWorld } from './world.js';
 import { createUI } from './ui.js';
 import { createAudio } from './audio.js';
@@ -7,24 +7,46 @@ import { regionAt } from './data.js';
 import { t } from './i18n.js';
 import { createSequenceGame } from './sequences.js';
 import { createFinale } from './finale.js';
+import { createMoment, advanceMoment } from './moments.js';
+import { HOUSE_ACTIVITIES } from './dialogues.js';
+import { createSaveStore, createSnapshot, decodeRecord, restoreGame } from './save.js';
 
 let game = createGame();
 let overlay = 'intro';
 let returnOverlay = null;
 let adminReturn = null;
+// Sound intent is separate from the engine's confirmed running output.
+// soundWanted persists; soundChosen protects a choice made during this visit.
 let sound = false;
-let soundPreference = null;
+let soundWanted = true;
+let soundChosen = false;
+let soundState = 'idle';
+let soundUnavailable = false;
+let soundReadSettled = false;
+let languageChosen = false;
+let guidanceChosen = false;
+// Local continuation: the store owns storage authority; main owns flows and copy.
+let checkpointBase = null;
+let unsavedCause = null;
+let flowToken = 0;
+let flowBusy = false;
+let confirmState = null;
+let failureState = null;
+let hydrated = false;
 let soundError = '';
 let sampleFallback = false;
 let dialogueChoice = null;
+let guidance = true;
 let endingTime = 0;
+let moment = null;
 const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 const keys = new Set();
 let touch = { x: 0, y: 0, interact: false };
 let pendingInteraction = false;
 const audio = createAudio((enabled) => {
   sound = enabled;
-  if (enabled) clearSoundError();
+  if (enabled) { soundState = 'running'; soundUnavailable = false; clearSoundError(); }
+  else if (soundState === 'running') soundState = soundWanted ? 'waiting' : 'idle';
   if (!stopped) drawUI();
 }, (status) => {
   sampleFallback = status === 'fallback';
@@ -32,8 +54,13 @@ const audio = createAudio((enabled) => {
     setMessage(game, 'The instruments couldn’t load. Music will use synthesized sounds. You can keep exploring.', {}, 7);
     drawUI();
   }
+}, (status) => {
+  if (status === 'waiting' && !sound) soundState = 'waiting';
+  if (status === 'unavailable') markSoundUnavailable();
+  if (!stopped) drawUI();
 });
 const ui = createUI(document.querySelector('#ui'), onAction);
+const store = createSaveStore({ onChange: onStoreChange });
 const finale = createFinale(document.querySelector('#app'), onAction, playing => { game.dancePlaying = playing; });
 let world;
 let stopped = false;
@@ -43,6 +70,21 @@ let audioFocused = document.hasFocus();
 function syncAudioPause() {
   audio.setPaused(stopped || !audioFocused || document.hidden || game.phase === 'won' && game.ending === 'dance' || Boolean(overlay) && !['intro', 'win', 'reveal', 'dialogue'].includes(overlay));
   if (overlay !== 'dance' || !audioFocused || document.hidden) finale.pause();
+}
+
+function clearGiftReceipt() {
+  if (game.messageKey === 'You learned {song}. A fairy tear is safe in your jar.') setMessage(game, '', {}, 0);
+}
+
+function clearMoment(releaseInstruction = false) {
+  const previous = moment;
+  moment = null;
+  if (previous?.kind === 'fairy-gift') clearGiftReceipt();
+  if (releaseInstruction && previous?.kind === 'aldo-lullaby' && game.scene === 'house'
+      && game.phase === 'playing' && game.houseStep === previous.nextStep && !game.actionAnimation && !game.conversation) {
+    setMessage(game, HOUSE_ACTIVITIES[1].message, {}, 7);
+  }
+  audio.tick(game, 0, moment);
 }
 
 function clearInput(preserveActivity = false) {
@@ -64,28 +106,383 @@ function showOverlay(next, preserveActivity = false) {
 
 function drawUI() {
   ui.update(game, {
-    overlay, sound, soundError: soundError ? t(game.language, soundError) : '', nearby: getNearby(game), goal: getGoal(game), region: t(game.language, game.scene === 'house' ? 'Inside the cottage' : regionAt(game.player)),
+    overlay, moment, sound, soundState, guidance, storage: storageView(), soundError: soundError ? t(game.language, soundError) : soundState === 'waiting' ? t(game.language, 'Sound is waiting to start.') : '', nearby: getNearby(game), goal: getGoal(game), region: t(game.language, game.scene === 'house' ? 'Inside the cottage' : regionAt(game.player)),
     sampleFallback: sampleFallback ? t(game.language, 'The instruments couldn’t load. Music will use synthesized sounds. You can keep exploring.') : '',
-    dialogue: { creatureId: game.conversation, index: game.conversationIndex, choice: dialogueChoice },
+    dialogue: { creatureId: game.conversation, index: game.conversationIndex, choice: dialogueChoice, quiz: game.quizSession && { ...game.quizSession } },
   });
 }
 
 function clearSoundError() {
-  if (soundError && game.messageKey === soundError) setMessage(game, '', {}, 0);
   soundError = '';
 }
 
-function setSound(next) {
-  soundPreference = next;
+function markSoundUnavailable() {
+  sound = false;
+  soundUnavailable = true;
+  soundState = 'unavailable';
+  soundError = 'Sound is unavailable. You can keep exploring without it.';
+}
+
+// Only a trusted gesture may ask the browser to start audio.
+function attemptSound() {
   try {
-    sound = audio.setEnabled(next);
-    if (sound) clearSoundError();
+    if (audio.setEnabled(true)) { sound = true; soundState = 'running'; clearSoundError(); }
+  } catch { markSoundUnavailable(); }
+}
+
+function requestSoundFromGesture(event) {
+  if (!event?.isTrusted || stopped || !soundWanted || sound || !soundReadSettled || soundUnavailable) return;
+  attemptSound();
+  drawUI();
+}
+
+function soundOff() {
+  soundWanted = false;
+  soundState = 'idle';
+  audio.setEnabled(false);
+  sound = false;
+}
+
+function toggleGameSound(event) {
+  soundChosen = true;
+  if (soundState === 'waiting' || soundState === 'running') soundOff();
+  else {
+    soundWanted = true;
+    soundUnavailable = false;
+    clearSoundError();
+    soundState = 'idle';
+    if (event?.isTrusted) attemptSound();
   }
-  catch {
-    sound = false;
-    soundError = 'Sound is unavailable. You can keep exploring without it.';
-    setMessage(game, soundError, {}, 5);
-  } finally { drawUI(); }
+  drawUI();
+}
+
+// The dance video has its own output. Its control changes intent only.
+function toggleVideoSound() {
+  soundChosen = true;
+  if (soundWanted) soundOff();
+  else { soundWanted = true; soundUnavailable = false; clearSoundError(); if (soundState === 'unavailable') soundState = 'idle'; }
+  drawUI();
+}
+
+// ---- Local continuation ----
+const preferences = () => ({ language: game.language, sound: soundWanted, guidance });
+const storageState = () => store.state;
+const readPending = () => storageState().read !== 'settled';
+const sorted = (list) => [...list].sort();
+// Completed steps only. Position and pets don't count as progress at risk.
+const progressKey = (source) => JSON.stringify([sorted(source.potatoes), sorted(source.tears), sorted(source.learnedSongs),
+  sorted(source.restoredSites), sorted(source.quizCompleted), source.houseStep, source.phase === 'won' || source.checkpoint === 'supper']);
+
+const NO_PROGRESS = progressKey({ potatoes: [], tears: [], learnedSongs: [], restoredSites: [], quizCompleted: [], houseStep: 0, phase: 'playing' });
+function hasUncommittedProgress() {
+  const state = storageState();
+  if (game.phase === 'intro' || state.mode === 'study' || state.mode === 'unclaimed') return false;
+  if (state.mode === 'normal' && state.knownCommitted) {
+    const slot = decodeRecord(state.knownCommitted);
+    if (slot.status === 'valid') return progressKey(slot.payload) !== progressKey(game);
+  }
+  return progressKey(game) !== NO_PROGRESS;
+}
+
+// Write after completed steps. A preference change saves against the last one.
+function saveProgress() {
+  if (storageState().mode !== 'normal') return;
+  checkpointBase = createSnapshot(game, preferences(), 'pending');
+  store.checkpoint(checkpointBase);
+}
+function savePreferences() {
+  if (storageState().mode !== 'normal' || !checkpointBase) return;
+  store.checkpoint({ ...checkpointBase, preferences: preferences() });
+}
+
+function applySavedPreferences(saved) {
+  if (!languageChosen && saved.language !== game.language) { setLanguage(game, saved.language); syncLanguage(); }
+  if (!soundChosen) soundWanted = saved.sound;
+  if (!guidanceChosen) guidance = saved.guidance;
+}
+
+function onStoreChange() {
+  const state = storageState();
+  if (!hydrated && state.read === 'settled') {
+    hydrated = true;
+    soundReadSettled = true;
+    // Hydration changes intent only. It never attempts playback or writes.
+    if (state.slot.status === 'valid' && state.mode === 'unclaimed' && game.phase === 'intro') applySavedPreferences(state.slot.payload.preferences);
+  }
+  // A lost connection while a replacement waits for confirmation keeps the old game.
+  if (overlay === 'confirmWalk' && confirmState?.approved && !state.available) {
+    const back = confirmState.back;
+    confirmState = null;
+    showFailure(back);
+    return;
+  }
+  if (!stopped) drawUI();
+}
+
+function captureSurface() {
+  return { overlay, returnOverlay, adminReturn };
+}
+function restoreSurface(surface) {
+  returnOverlay = surface.returnOverlay;
+  adminReturn = surface.adminReturn;
+  showOverlay(surface.overlay, true);
+}
+function showFailure(back) {
+  failureState = { back };
+  showOverlay('saveFailure', true);
+}
+
+function replaceGame(next) {
+  clearInput();
+  clearMoment();
+  flowToken += 1;
+  game = next;
+  dialogueChoice = null;
+  returnOverlay = null;
+  adminReturn = null;
+  confirmState = null;
+  failureState = null;
+  endingTime = 0;
+  syncLanguage();
+}
+
+// Continue and Return are read-only. The visit's current preferences win.
+function loadWalk(raw) {
+  const slot = decodeRecord(raw);
+  if (slot.status !== 'valid') return false;
+  const loaded = restoreGame(slot.payload, createGame);
+  setLanguage(loaded, game.language);
+  replaceGame(loaded);
+  store.setMode('normal', raw);
+  unsavedCause = null;
+  checkpointBase = createSnapshot(game, preferences(), 'pending');
+  if (!soundWanted) soundOff();
+  if (game.phase === 'won') showOverlay('endingChoice');
+  else showOverlay(null);
+  return true;
+}
+
+function continueWalk(event) {
+  const state = storageState();
+  if (game.phase !== 'intro' || state.mode !== 'unclaimed' || !offerContinue()) return;
+  requestSoundFromGesture(event);
+  loadWalk(state.slot.raw);
+}
+
+function freshWalk() {
+  const next = game.phase === 'intro' && storageState().mode === 'unclaimed' ? game : createGame(game.language);
+  startGame(next);
+  return next;
+}
+
+function beginUnsavedWalk(cause, event) {
+  if (cause === 'chosen') { store.abandon(); soundReadSettled = true; }
+  requestSoundFromGesture(event);
+  const next = freshWalk();
+  replaceGame(next);
+  store.setMode('unsaved');
+  unsavedCause = cause;
+  checkpointBase = null;
+  showOverlay(null);
+}
+
+function lossText(state = storageState()) {
+  if (state.mode === 'study') return 'Start a new walk? The current study scene will be replaced.';
+  return game.phase !== 'intro' && hasUncommittedProgress() ? 'Start a new walk? Unsaved progress in the current walk will be lost.' : '';
+}
+
+// The common New walk flow for the title, pause, Start the walk, and Walk again.
+async function newWalk(event) {
+  if (flowBusy || confirmState || readPending()) return;
+  requestSoundFromGesture(event);
+  const back = captureSurface();
+  const state = storageState();
+  if (!state.available) {
+    const loss = lossText(state);
+    const notice = state.reason === 'chosen-unsaved' ? 'Saving is off for the visit. A new walk won’t be saved.' : 'Saving is unavailable. A new walk won’t be saved.';
+    const cause = state.reason === 'chosen-unsaved' ? 'chosen' : 'unavailable';
+    if (!loss && game.phase === 'intro') { beginUnsavedWalk(cause, event); return; }
+    confirmState = { notice, text: loss || 'Start a new walk?', action: 'unsaved', cause, back };
+    showOverlay('confirmWalk', true);
+    return;
+  }
+  const token = ++flowToken;
+  flowBusy = true;
+  drawUI();
+  const approved = await store.prepareReplacement();
+  flowBusy = false;
+  if (token !== flowToken || stopped) return;
+  if (approved.status === 'unavailable') { showFailure(back); return; }
+  if (approved.status === 'unsupported') {
+    confirmState = { notice: 'Saving is unavailable. A new walk won’t be saved.', text: lossText() || 'Start a new walk?', action: 'unsaved', cause: 'unsupported', back };
+    showOverlay('confirmWalk', true);
+    return;
+  }
+  let text = '';
+  if (approved.status === 'valid' || approved.status === 'invalid') {
+    text = `${t(game.language, 'Start a new walk? Your saved walk will be replaced.')}${game.phase !== 'intro' && storageState().mode !== 'study' && hasUncommittedProgress() ? ` ${t(game.language, 'Unsaved progress in the current walk will also be lost.')}` : ''}`;
+  } else text = lossText() ? t(game.language, lossText()) : '';
+  // The gesture ended during the reread, so the sound request above was its only one.
+  if (!text) { await commitNewWalk(approved, back, null); return; }
+  confirmState = { text, translated: true, action: 'replace', approved, back };
+  showOverlay('confirmWalk', true);
+}
+
+async function commitNewWalk(approved, back, event) {
+  requestSoundFromGesture(event);
+  const token = ++flowToken;
+  const next = game.phase === 'intro' ? game : createGame(game.language);
+  const payload = createSnapshot({ ...next, phase: 'playing' }, preferences(), 'pending');
+  flowBusy = true;
+  drawUI();
+  const result = await store.replace(approved, payload);
+  flowBusy = false;
+  if (token !== flowToken || stopped) return;
+  if (result === 'committed') {
+    // The new walk becomes current only after its record commits.
+    startGame(next);
+    replaceGame(next);
+    unsavedCause = null;
+    checkpointBase = payload;
+    showOverlay(null);
+    return;
+  }
+  // A refused or failed replacement keeps the prior game beneath the failure panel.
+  confirmState = null;
+  showFailure(back);
+}
+
+function confirmWalk(event) {
+  const pending = confirmState;
+  if (!pending || flowBusy) return;
+  if (pending.action === 'unsaved') { confirmState = null; beginUnsavedWalk(pending.cause, event); return; }
+  commitNewWalk(pending.approved, pending.back, event);
+}
+
+function failureBack() {
+  if (!failureState || flowBusy) return;
+  const { back } = failureState;
+  failureState = null;
+  restoreSurface(back);
+  savePreferences();
+}
+
+function cancelConfirm() {
+  if (!confirmState || flowBusy) return;
+  const { back } = confirmState;
+  confirmState = null;
+  if (back.overlay === 'saveFailure') showOverlay('saveFailure', true);
+  else {
+    restoreSurface(back);
+    // The reread dropped any queued step, so queue the last completed one again.
+    savePreferences();
+  }
+}
+
+// Play without saving. Live walks and studies confirm the loss first.
+function playUnsaved(event, confirmed = false) {
+  if (flowBusy) return;
+  const state = storageState();
+  const loss = game.phase === 'intro' ? '' : state.mode === 'study' ? 'Start a new walk? The current study scene will be replaced.'
+    : game.phase === 'playing' ? 'Start a new walk? Unsaved progress in the current walk will be lost.' : '';
+  if (loss && !confirmed) {
+    confirmState = { text: loss, action: 'unsaved', cause: 'chosen', label: 'New walk without saving', back: captureSurface() };
+    showOverlay('confirmWalk', true);
+    return;
+  }
+  beginUnsavedWalk('chosen', event);
+}
+
+function canReturn() {
+  const state = storageState();
+  return state.mode === 'study' && state.available && !state.conflict && Boolean(state.knownCommitted);
+}
+
+async function returnToSaved(event) {
+  if (!canReturn() || flowBusy) return;
+  requestSoundFromGesture(event);
+  const token = ++flowToken;
+  flowBusy = true;
+  drawUI();
+  const settled = await store.settle();
+  flowBusy = false;
+  if (token !== flowToken || stopped) return;
+  if (!settled || !canReturn() || !loadWalk(storageState().knownCommitted)) drawUI();
+}
+
+function offerContinue() {
+  const state = storageState();
+  return state.read === 'settled' && state.available && !state.conflict && state.slot.status === 'valid' && state.mode === 'unclaimed';
+}
+
+// Status copy follows the surface first, then the storage cause.
+function saveStatus() {
+  const state = storageState();
+  const failed = state.reason === 'failed';
+  if (state.mode === 'study') {
+    return [t(game.language, 'Scene study. Progress here isn’t saved.'),
+      state.conflict ? t(game.language, 'Another tab saved a different walk. Reload to check it, or keep playing without saving. Reloading will lose unsaved progress.')
+        : failed ? t(game.language, 'Saving is unavailable. Reload to check for a saved walk. Reloading will replace the study scene.') : ''].filter(Boolean).join(' ');
+  }
+  if (game.phase === 'intro') {
+    if (readPending()) return t(game.language, 'Checking for a saved walk.');
+    if (state.conflict) return t(game.language, 'Another tab saved a different walk. Reload to check it, start a new walk, or play without saving.');
+    if (!state.available) return t(game.language, 'Saving is unavailable. Reload to check for a saved walk, or start a new walk without saving.');
+    if (state.slot.status === 'unsupported') return t(game.language, 'Saving is unavailable. A new walk won’t be saved.');
+    if (state.slot.status === 'invalid') return t(game.language, 'A saved walk was found, but it can’t be opened. Starting a new walk will replace it.');
+    return '';
+  }
+  // An unsaved walk never writes, so an earlier conflict no longer describes it.
+  if (game.phase === 'won') {
+    if (state.conflict && state.mode !== 'unsaved') return t(game.language, 'Another tab saved a different walk. Start a new walk, or play without saving.');
+    if (state.mode === 'normal' && !state.available || state.mode === 'unsaved' && unsavedCause === 'unavailable') return t(game.language, 'Saving is unavailable. Keep the tab open to revisit the ending. Reloading loses unsaved progress.');
+    if (state.mode === 'unsaved') return t(game.language, 'The finished walk isn’t saved. Keep the tab open to revisit the ending. Reloading loses unsaved progress.');
+    return '';
+  }
+  if (state.conflict && state.mode !== 'unsaved') return t(game.language, 'Another tab saved a different walk. Reload to check it, or keep playing without saving. Reloading will lose unsaved progress.');
+  if (state.mode === 'normal' && !state.available) return t(game.language, 'Progress couldn’t be saved. Closing the tab will lose unsaved progress. Keep it open to finish the walk.');
+  if (state.mode === 'unsaved') return t(game.language, 'Progress in the walk isn’t saved. Keep the tab open to finish it. Reloading will lose unsaved progress.');
+  return '';
+}
+
+function selectorNote() {
+  const state = storageState();
+  if (state.mode === 'study') return 'Choosing another study scene replaces the current scene. Progress here won’t be saved.';
+  if (state.mode === 'unclaimed') return 'Progress in scene study won’t be saved.';
+  if (state.mode === 'normal' && state.available && !state.conflict && state.knownCommitted) return 'Choosing a study scene leaves the last saved checkpoint available. Unsaved steps will be lost.';
+  return 'Choosing a study scene replaces the current walk. Unsaved progress will be lost.';
+}
+
+function storageView() {
+  const state = storageState();
+  const status = saveStatus();
+  const title = game.phase === 'intro';
+  const finished = game.phase === 'won' && state.mode !== 'study';
+  const saved = state.mode === 'normal' && state.available && !state.conflict && state.saved;
+  return {
+    pending: readPending(), busy: flowBusy || state.busy,
+    offerContinue: title && offerContinue(),
+    offerUnsaved: title && (readPending() || state.conflict) || finished && state.conflict && state.mode === 'normal',
+    offerReload: title && !readPending() && (state.conflict || !state.available),
+    offerReturn: canReturn(),
+    status,
+    helpStatus: saved ? t(game.language, 'Your completed steps are saved in this browser.') : state.mode === 'study' ? t(game.language, 'Progress in scene study isn’t saved.') : status,
+    selectorNote: t(game.language, selectorNote()),
+    confirm: confirmState && {
+      notice: confirmState.notice ? t(game.language, confirmState.notice) : '',
+      text: confirmState.translated ? confirmState.text : t(game.language, confirmState.text),
+      label: t(game.language, confirmState.label || 'New walk'),
+    },
+    // Only a title or a finished walk starts without a loss check, so elsewhere the buttons say what they keep or start.
+    failure: failureState && {
+      text: status || t(game.language, 'Saving is unavailable. A new walk won’t be saved.'),
+      primary: t(game.language, title || finished ? 'Play without saving' : 'New walk without saving'),
+      back: t(game.language, title || game.phase === 'won'
+        ? failureState.back.overlay === 'admin' ? 'Back to Scene select' : title ? 'Back to the title' : 'Back to the ending'
+        : state.mode === 'study' ? 'Keep current scene' : 'Keep current walk'),
+    },
+    studyStatus: state.mode === 'study' ? status : '',
+  };
 }
 
 function syncLanguage() {
@@ -97,6 +494,8 @@ function syncLanguage() {
 }
 
 function closeOverlay() {
+  if (overlay === 'confirmWalk') { cancelConfirm(); return; }
+  if (overlay === 'saveFailure') { failureBack(); return; }
   if (overlay === 'admin') {
     const previous = adminReturn;
     adminReturn = null;
@@ -104,6 +503,7 @@ function closeOverlay() {
     showOverlay(previous?.overlay || null, true);
     return;
   }
+  if (overlay === 'supper') { beginEnding(); return; }
   if (overlay === 'intro' || overlay === 'win' || overlay === 'reveal' || overlay === 'dance' || overlay === 'endingChoice') return;
   if (overlay === 'dialogue') { onAction('dialogueFinish'); return; }
   const next = returnOverlay;
@@ -111,42 +511,46 @@ function closeOverlay() {
   showOverlay(next);
 }
 
-function onAction(action, value) {
+function onAction(action, value, event) {
   if (stopped) return;
   if (action === 'admin') {
+    // Confirmation and failure panels hold the only start actions on screen.
+    if (overlay === 'confirmWalk' || overlay === 'saveFailure') return;
     if (overlay === 'admin') closeOverlay();
     else {
       adminReturn = { overlay, returnOverlay };
       showOverlay('admin', true);
     }
   } else if (action === 'jump' && overlay === 'admin') {
+    if (value === 'start') { newWalk(event); return; }
+    if (readPending() || flowBusy) return;
     const next = createSequenceGame(value, game.language);
     if (!next) return;
-    clearInput();
-    game = next;
-    dialogueChoice = null;
-    returnOverlay = null;
-    adminReturn = null;
-    endingTime = 0;
-    syncLanguage();
+    replaceGame(next);
+    store.setMode('study');
+    checkpointBase = null;
     if (game.phase === 'won') beginEnding();
     else showOverlay(game.conversation ? 'dialogue' : game.phase === 'intro' ? 'intro' : null);
-  } else if (action === 'start' && game.phase === 'intro') {
-    startGame(game);
-    returnOverlay = null;
-    showOverlay(null);
-    if (soundPreference === null) setSound(true);
+  } else if (action === 'continue' && overlay === 'intro') continueWalk(event);
+  else if (action === 'newWalk' && ['intro', 'pause'].includes(overlay)) newWalk(event);
+  else if (action === 'playUnsaved' && ['intro', 'win', 'saveFailure'].includes(overlay) || action === 'playUnsaved' && overlay === 'dance') playUnsaved(event);
+  else if (action === 'returnSaved' && ['pause', 'admin'].includes(overlay)) returnToSaved(event);
+  else if (action === 'reload' && overlay === 'intro') window.location.reload();
+  else if (action === 'confirmWalk' && overlay === 'confirmWalk') confirmWalk(event);
+  else if (action === 'cancelConfirm' && overlay === 'confirmWalk') cancelConfirm();
+  else if (action === 'failureBack' && overlay === 'saveFailure') failureBack();
+  else if (action === 'supperContinue' && overlay === 'supper') {
+    beginEnding();
+  } else if (action === 'guidance') {
+    guidance = !guidance;
+    guidanceChosen = true;
+    savePreferences();
+    drawUI();
   } else if (action === 'ending' && overlay === 'endingChoice' && ['dance', 'goddess'].includes(value)) {
     game.ending = value;
     beginEnding();
   } else if (action === 'restart' && game.phase === 'won' && ['win', 'dance'].includes(overlay)) {
-    game = createGame(game.language);
-    startGame(game);
-    endingTime = 0;
-    syncLanguage();
-    returnOverlay = null;
-    dialogueChoice = null;
-    showOverlay(null);
+    newWalk(event);
   } else if (action === 'pause' && game.phase === 'playing' && !overlay) {
     returnOverlay = null;
     showOverlay('pause');
@@ -159,23 +563,41 @@ function onAction(action, value) {
   } else if (action === 'map' && game.phase !== 'won' && (!overlay || ['intro', 'pause', 'map'].includes(overlay))) {
     if (overlay === 'map') closeOverlay();
     else { returnOverlay = overlay; showOverlay('map'); }
-  } else if (action === 'dialogueChoice' && overlay === 'dialogue' && (value === 0 || value === 1)) {
+  } else if (action === 'quizAnswer' && overlay === 'dialogue' && game.scene === 'outdoors') {
+    // The event names its quiz, so a stale button can't answer a newer question.
+    if (answerQuiz(game, value?.optionId, value?.quizId)) drawUI();
+  } else if (action === 'dialogueChoice' && overlay === 'dialogue' && game.scene === 'house' && (value === 0 || value === 1)) {
     dialogueChoice = value;
     drawUI();
   } else if (action === 'chooseSong' && overlay === 'songs') {
     if (chooseSong(game, value)) { returnOverlay = null; showOverlay(null, true); }
   } else if (action === 'language') {
     setLanguage(game, value === 'cs' || value === 'en' ? value : game.language === 'cs' ? 'en' : 'cs');
+    languageChosen = true;
     syncLanguage();
+    savePreferences();
     drawUI();
   } else if (action === 'dialogueFinish' && overlay === 'dialogue') {
+    // An answered quiz always moves the animal's rotation, even when its question was answered before.
+    const subject = game.conversation, choice = dialogueChoice, stepBefore = game.houseStep, quizFinalized = Boolean(game.quizSession?.answerId);
     finishConversation(game);
+    if (quizFinalized || game.houseStep > stepBefore) saveProgress();
     dialogueChoice = null;
     returnOverlay = null;
+    if (game.scene === 'house' && game.houseStep === stepBefore + 1) {
+      clearMoment();
+      if (subject === 'john') moment = createMoment('john-bowls', subject);
+      else if (subject === 'aldo' && choice !== null) {
+        moment = createMoment(choice === 1 ? 'aldo-lullaby' : 'aldo-finger', subject, game.houseStep);
+        if (choice === 1) setMessage(game, '', {}, 0);
+      }
+    }
     showOverlay(null);
   } else if (action === 'close') closeOverlay();
   else if (action === 'sound') {
-    setSound(!sound);
+    if (value === 'video') toggleVideoSound();
+    else toggleGameSound(event);
+    savePreferences();
   } else if (action === 'touchMove' && !overlay) {
     touch.x = value.x;
     touch.y = value.y;
@@ -186,11 +608,13 @@ function onAction(action, value) {
 }
 
 const movementKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'KeyE']);
-function onIntroInteraction(event) {
-  if (!event.isTrusted || stopped || game.phase !== 'intro' || soundPreference !== null) return;
-  if (event.target.closest('[data-action="sound"]')) return;
+// Any eligible click or key retries sound while it's wanted. Sound controls and
+// walk transitions handle their own gesture, and the dance video has its own output.
+function onGestureCapture(event) {
+  if (!event.isTrusted || stopped || overlay === 'dance') return;
+  if (event.target?.closest?.('[data-action="sound"], [data-own-gesture]')) return;
   if (event.type === 'keydown' && (event.repeat || event.ctrlKey || event.metaKey || event.altKey || ['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'Escape'].includes(event.key))) return;
-  setSound(true);
+  requestSoundFromGesture(event);
 }
 function onKeyDown(event) {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -204,7 +628,7 @@ function onKeyDown(event) {
     event.preventDefault();
     if (event.repeat) return;
     if (overlay) closeOverlay();
-    else if (game.activeSong) { cancelSong(game); audio.tick(game); drawUI(); }
+    else if (game.activeSong) { cancelSong(game); audio.tick(game, 0, moment); drawUI(); }
     else onAction('pause');
   } else if (event.code === 'KeyM' && game.phase !== 'won') {
     event.preventDefault();
@@ -240,8 +664,8 @@ function onVisibility() {
   else { audioFocused = document.hasFocus(); syncAudioPause(); }
 }
 window.addEventListener('keydown', onKeyDown);
-window.addEventListener('click', onIntroInteraction, true);
-window.addEventListener('keydown', onIntroInteraction, true);
+window.addEventListener('click', onGestureCapture, true);
+window.addEventListener('keydown', onGestureCapture, true);
 window.addEventListener('keyup', onKeyUp);
 window.addEventListener('blur', onBlur);
 window.addEventListener('focus', onFocus);
@@ -249,6 +673,8 @@ document.addEventListener('visibilitychange', onVisibility);
 
 function graphicsError(artwork = false) {
   stopped = true;
+  store.dispose();
+  moment = null;
   clearInput();
   audio.setPaused(true);
   audio.dispose();
@@ -292,7 +718,14 @@ try {
 }
 
 let previousTime;
+// Real serving shows the settled supper first. Prepared endings skip it.
+function beginSupper() {
+  clearMoment();
+  moment = createMoment('supper', 'serve');
+  showOverlay('supper');
+}
 function beginEnding() {
+  clearMoment();
   endingTime = 0;
   if (!game.ending) {
     showOverlay('endingChoice');
@@ -312,21 +745,47 @@ function animate(timestamp) {
   const elapsed = previousTime === undefined ? 0 : Math.max(0, (timestamp - previousTime) / 1000);
   const dt = Math.min(.05, elapsed);
   previousTime = timestamp;
-  if (!overlay) {
+  const visiblePlay = audioFocused && !document.hidden;
+  const expiredMoment = moment && visiblePlay && (!overlay || overlay === 'dialogue' && moment.kind === 'john-bowls' || overlay === 'supper' && moment.kind === 'supper')
+    && advanceMoment(moment, elapsed) ? moment : null;
+  if (!overlay && visiblePlay) {
     const potatoesBefore = game.potatoes.length;
     const tearsBefore = game.tears.length;
+    const restoredBefore = game.restoredSites.length;
+    const houseStepBefore = game.houseStep;
+    const phaseBefore = game.phase;
     const sceneBefore = game.scene;
+    const songBefore = game.activeSong;
+    const actionBefore = game.actionAnimation;
+    const moveX = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft')) + touch.x;
+    const moveY = Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp')) + touch.y;
+    const quietCot = moment?.kind === 'aldo-lullaby' && getNearby(game)?.id === 'aldo';
     step(game, {
-      x: Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft')) + touch.x,
-      y: Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp')) + touch.y,
-      interact: pendingInteraction || keys.has('KeyE') || touch.interact,
+      x: moveX, y: moveY,
+      interact: !quietCot && (pendingInteraction || keys.has('KeyE') || touch.interact),
     }, elapsed);
     if (dt > 0) pendingInteraction = false;
     if (game.scene !== sceneBefore) {
+      clearMoment();
       clearInput();
       syncLanguage();
     }
-    audio.tick(game, dt);
+    const newInteraction = game.conversation || game.songSite || game.activeSong && game.activeSong !== songBefore
+      || game.actionAnimation && game.actionAnimation !== actionBefore;
+    if (moment && newInteraction && moment.kind !== 'john-bowls') clearMoment();
+    if (moment && Math.hypot(moveX, moveY) > .01) {
+      if (moment.kind === 'fairy-gift') { moment.focusReleased = true; clearGiftReceipt(); }
+      else if (moment.kind === 'restoration-finish' || moment.kind === 'practice-response') moment.focusReleased = true;
+      else if (moment.kind.startsWith('aldo-')) clearMoment(true);
+    }
+    if (moment && moment === expiredMoment) clearMoment(true);
+    if (game.tears.length > tearsBefore && songBefore?.kind === 'learn') moment = createMoment('fairy-gift', songBefore.targetId);
+    // Presentation follows a real reward or a finished phrase. It replaces any older moment.
+    if (game.restoredSites.length > restoredBefore && songBefore?.kind === 'restore') { clearMoment(); moment = createMoment('restoration-finish', songBefore.targetId); }
+    if (songBefore?.kind === 'practice' && game.activeSong !== songBefore && songBefore.progress >= 1) { clearMoment(); moment = createMoment('practice-response', songBefore.targetId); }
+    audio.tick(game, dt, moment);
+    if (game.potatoes.length > potatoesBefore || game.tears.length > tearsBefore || game.restoredSites.length > restoredBefore
+      || game.houseStep > houseStepBefore || game.phase === 'won' && phaseBefore !== 'won') saveProgress();
     if (game.potatoes.length > potatoesBefore) audio.collect('potato');
     if (game.tears.length > tearsBefore) audio.collect('fairy');
     if (game.songSite) { returnOverlay = null; showOverlay('songs', true); }
@@ -335,11 +794,14 @@ function animate(timestamp) {
       returnOverlay = null;
       showOverlay('dialogue');
     }
-    if (game.phase === 'won') {
-      beginEnding();
-    }
-  } else if (overlay === 'dialogue' || overlay === 'intro') audio.tick(game, dt);
-  else if (overlay === 'reveal') {
+    if (game.phase === 'won') beginSupper();
+  } else if (overlay === 'supper') {
+    if (moment && moment === expiredMoment) beginEnding();
+  } else if (overlay === 'dialogue' || overlay === 'intro') {
+    if (moment && moment === expiredMoment) clearMoment(true);
+    audio.tick(game, dt, moment);
+  }
+  else if (overlay === 'reveal' && visiblePlay) {
     endingTime += dt;
     if (reducedMotion?.matches || endingTime >= 3.6) showOverlay('win');
   } else if (overlay === 'dance' && audioFocused && !document.hidden) {
@@ -347,14 +809,17 @@ function animate(timestamp) {
     const playbackTime = finale.getPlaybackTime();
     if (playbackTime !== null) game.danceTime = playbackTime;
   }
-  world.update(game, overlay === 'admin' ? 0 : dt, timestamp / 1000);
-  finale.update(game, { overlay, sound, focused: audioFocused && !document.hidden }, world.projectorBounds?.());
+  const frozen = !visiblePlay || Boolean(overlay) && !['intro', 'dialogue', 'win', 'reveal', 'dance', 'endingChoice', 'supper'].includes(overlay);
+  world.update(game, frozen ? 0 : dt, timestamp / 1000, moment, frozen);
+  const storage = storageView();
+  finale.update(game, { overlay, soundWanted, focused: audioFocused && !document.hidden, saveStatus: storage.status, offerUnsaved: storage.offerUnsaved }, world.projectorBounds?.());
   drawUI();
   frame = requestAnimationFrame(animate);
 }
 if (!stopped) {
   syncAudioPause();
   drawUI();
+  store.start();
   frame = requestAnimationFrame(animate);
 }
 
@@ -364,15 +829,17 @@ window.addEventListener('resize', onResize);
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     stopped = true;
+    moment = null;
     cancelAnimationFrame(frame);
     window.removeEventListener('keydown', onKeyDown);
-    window.removeEventListener('click', onIntroInteraction, true);
-    window.removeEventListener('keydown', onIntroInteraction, true);
+    window.removeEventListener('click', onGestureCapture, true);
+    window.removeEventListener('keydown', onGestureCapture, true);
     window.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('blur', onBlur);
     window.removeEventListener('focus', onFocus);
     window.removeEventListener('resize', onResize);
     document.removeEventListener('visibilitychange', onVisibility);
+    store.dispose();
     world?.dispose();
     ui.dispose();
     finale.dispose();

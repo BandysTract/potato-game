@@ -23,3 +23,5 @@
   .finale-buttons { gap: 5px; }
   .finale-buttons .button, .finale-buttons .icon-button { font-size: 11px; padding: 7px 10px; }
 }
+.finale-save { margin: 6px 0 0; font-size: 12px; line-height: 1.4; }
+.finale-save:empty { display: none; }

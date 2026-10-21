@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SEQUENCES, createSequenceGame } from '../src/sequences.js';
-import { chooseSong, finishConversation, getNearby, step } from '../src/game.js';
+import { answerQuiz, chooseSong, finishConversation, getNearby, step } from '../src/game.js';
 import { BOUNDS, CREATURES, FAIRIES, HOME, HOUSE_BOUNDS, HOUSE_OBSTACLES, HOUSE_TARGETS, OBSTACLES, POTATOES, SONGS, SONG_SITES } from '../src/data.js';
-import { DIALOGUES } from '../src/dialogues.js';
+import { QUIZZES } from '../src/quizzes.js';
 
 function interact(game) { step(game, { interact: true }, 0.05); }
 function completeAction(game) {
@@ -19,7 +19,7 @@ function allSupplies(game) {
 }
 
 test('the bounded scene catalog starts fresh games and rejects unknown choices', () => {
-  assert.equal(SEQUENCES.length, 20);
+  assert.equal(SEQUENCES.length, 23);
   assert.equal(new Set(SEQUENCES.map(({ id }) => id)).size, SEQUENCES.length);
   for (const invalid of ['unknown', 'fox:3', 'fox:-1', 'fox:01', 'garden-unknown', null, undefined]) assert.equal(createSequenceGame(invalid), null);
   const game = createSequenceGame('start', 'en');
@@ -88,18 +88,32 @@ test('all garden entries have the real prerequisites and can restore the garden'
   }
 });
 
-test('every animal question opens at the requested index and continues normally', () => {
+test('every animal question opens at the requested index without completion and continues normally', () => {
   let count = 0;
   for (const creature of CREATURES) {
     const sequence = SEQUENCES.find((entry) => entry.id === creature.id);
-    assert.equal(sequence.variants.length, DIALOGUES[creature.id].length);
+    assert.equal(sequence.variants.length, QUIZZES[creature.id].length);
+    assert.equal(sequence.group, 'Forest quizzes');
     sequence.variants.forEach((variant, index) => {
+      const quiz = QUIZZES[creature.id][index];
+      assert.deepEqual(variant.label, quiz.title, 'Variant labels come from quiz titles.');
       const game = createSequenceGame(variant.id);
       assert.equal(game.conversation, creature.id);
       assert.equal(game.conversationIndex, index);
+      assert.deepEqual(game.quizSession, { quizId: quiz.id, answerId: null });
+      assert.deepEqual(game.quizCompleted, [], 'A prepared quiz must not award completion.');
+      assert.deepEqual(game.talked, []);
       assert.equal(getNearby(game)?.id, creature.id);
       finishConversation(game);
+      assert.deepEqual(game.talked, [], 'An unanswered prepared quiz stays unvisited.');
+      step(game, {}, 0.05);
+      interact(game);
+      assert.equal(game.conversationIndex, index, 'Reopening presents the same question.');
+      assert.equal(answerQuiz(game, quiz.correctOptionId, quiz.id), true);
+      finishConversation(game);
       assert.deepEqual(game.talked, [creature.id]);
+      assert.deepEqual(game.quizCompleted, [quiz.id]);
+      step(game, {}, 0.05);
       interact(game);
       assert.equal(game.conversationIndex, (index + 1) % sequence.variants.length);
       count += 1;
@@ -156,5 +170,21 @@ test('both endings start from a complete supper and a fresh reveal', () => {
     assert.equal(game.activeSong, null);
     assert.equal(game.actionAnimation, null);
     assert.equal(game.conversation, null);
+  }
+});
+
+test('real serving and both direct endings share the supper position within interaction reach', () => {
+  const game = createSequenceGame('cook');
+  interact(game); completeAction(game);
+  // Walk along the clear aisle from the stove, then approach the serving target.
+  for (let i = 0; i < 16; i++) step(game, { x: 1, y: 1 }, .05);
+  const before = { ...game.player }, target = HOUSE_TARGETS.find(item => item.id === 'serve');
+  assert.equal(getNearby(game).id, 'serve'); interact(game); completeAction(game);
+  assert.equal(game.phase, 'won'); assert.equal(game.ending, null);
+  assert.equal(game.player.x, target.x); assert.equal(game.player.z, target.z);
+  assert.ok(Math.hypot(before.x - target.x, before.z - target.z) <= 2);
+  for (const ending of ['ending-dance', 'ending-goddess']) {
+    const direct = createSequenceGame(ending);
+    assert.equal(direct.player.x, game.player.x); assert.equal(direct.player.z, game.player.z);
   }
 });

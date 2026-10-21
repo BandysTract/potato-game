@@ -106,7 +106,7 @@ h1 { position: relative; margin: 0; font-family: var(--serif); font-size: clamp(
 .goal-distance { font-size: 11px; color: #6f7863; }
 .region-label { position: absolute; right: 29px; top: 92px; display: flex; gap: 7px; align-items: center; padding: 8px 11px; border: 1px solid #d6dfca; border-radius: 7px; font-size: 11px; color: #24483a; background: #faf5e9eb; }
 .region-label svg { width: 13px; height: 13px; }
-.interaction-wrap { position: absolute; bottom: 78px; left: 0; right: 0; display: flex; justify-content: center; padding: 0 20px; }
+.interaction-wrap { position: absolute; bottom: 78px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; padding: 0 20px; }
 .interaction { display: flex; align-items: center; min-width: 280px; max-width: 440px; gap: 14px; padding: 14px 19px; background: #f8f3e9f5; border: 1px solid #fffbf1; border-radius: 9px; box-shadow: 0 5px 25px #203b2c21; }
 .interaction-key { display: grid; place-items: center; width: 33px; height: 34px; font-size: 15px; flex: 0 0 auto; background: #e8ecd9; border-color: #bdc6a8; }
 .interaction-copy { display: flex; flex: 1; flex-direction: column; gap: 5px; }
@@ -550,7 +550,7 @@ h1 { position: relative; margin: 0; font-family: var(--serif); font-size: clamp(
 .quiz-premise { margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-family: var(--serif); font-size: 17px; line-height: 1.45; color: #2c4434; }
 .quiz-option { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-right: 14px; }
 .quiz-option > span:first-child { flex: 1; }
-.quiz-tag { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6b785b; }
+.quiz-tag { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .quiz-option:disabled { cursor: default; opacity: 1; color: #59665a; background: #f2f1e6; border-style: dashed; }
 .quiz-option.is-chosen:disabled { border-style: solid; border-color: #a58f6b; background: #f4ecdb; color: var(--ink); }
 .quiz-option.is-correct:disabled { border-style: solid; border-color: #6f9a76; background: #e3eedd; color: var(--ink); }
@@ -577,21 +577,24 @@ h1 { position: relative; margin: 0; font-family: var(--serif); font-size: clamp(
 .map-tree { fill: #b8c6a2; opacity: .85; }
 .map-fold { stroke: #b9b49a; stroke-width: .16; stroke-dasharray: .6 .4; opacity: .55; fill: none; }
 .trail-map { box-shadow: inset 0 0 0 1px #fffaf0, 0 6px 16px #3a4a3a1f; background: linear-gradient(90deg, #00000008 0 1px, transparent 1px 33.2%, #00000010 33.33%, transparent 33.6% 66.5%, #00000010 66.66%, transparent 67%), linear-gradient(#f0ecd9, #ebe5cd); }
-.ending-panel .ending-joke { font-family: var(--serif); font-size: 16px; font-style: italic; color: #4d5f45; margin: -4px 0 14px; }
+.ending-panel .ending-joke { font-family: var(--serif); font-size: 16px; font-style: italic; color: #4d5f45; margin: 8px 0 14px; }
 .guidance-toggle [data-guidance-state] { font-weight: 400; }
 /* Saving status: quiet text in panels, and a persistent line on the play surface. */
 .intro-actions { display: grid; gap: 10px; }
 .intro-actions .button { width: 100%; }
 .save-status { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: #4f5f50; }
 .save-status:empty { display: none; }
-.save-banner { position: absolute; left: 50%; bottom: 66px; transform: translateX(-50%); width: max-content; max-width: min(560px, calc(100% - 32px)); margin: 0; padding: 7px 12px; border-radius: 6px; background: #f7f1e5ee; border: 1px solid #d7c9a5; color: #4a4532; font-size: 12px; line-height: 1.4; text-align: center; pointer-events: none; }
+/* The status banner sits under the interaction prompt in the same column, so they never overlap. */
+.save-banner { width: max-content; max-width: min(560px, calc(100% - 32px)); margin: 0; padding: 7px 12px; border-radius: 6px; background: #f7f1e5ee; border: 1px solid #d7c9a5; color: #4a4532; font-size: 12px; line-height: 1.4; text-align: center; pointer-events: none; }
 .save-banner:empty { padding: 0; border: 0; background: none; }
+.save-banner:not(:empty) { margin-top: 8px; }
+/* Short touch screens have little room above Hana, so a status sits lower and the prompt stays where it was. */
+@media (max-height: 550px) and (pointer: coarse) { .interaction-wrap:has(.save-banner:not(:empty)) { bottom: 96px; } }
 .confirm-dialog { width: min(460px, 100%); }
 .confirm-dialog h2 { font-size: 22px; line-height: 1.35; margin: 6px 0 16px; }
 .confirm-actions { display: grid; gap: 10px; }
 .confirm-actions .button, .selector-return { width: 100%; }
 .selector-return { margin: 10px 0 4px; }
-@media (max-width: 700px) { .save-banner { bottom: 150px; } }
 /* Sound start status sits under the in-play Sound control, apart from event toasts. */
 .sound-control { position: relative; display: inline-flex; }
 .play-sound-status { position: absolute; top: calc(100% + 6px); right: 0; width: max-content; max-width: 220px; margin: 0; padding: 6px 9px; border-radius: 6px; background: #f8f3e8f2; border: 1px solid #c8ceba; color: var(--ink); font-size: 11px; line-height: 1.35; text-align: right; pointer-events: none; }

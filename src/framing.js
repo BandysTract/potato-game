@@ -1,3 +1,19 @@
+import { SONG_SITES } from './data.js';
+import { PRACTICE_ART } from './clearings.js';
+
+// A finished restoration frames its garden, and a practice reply its responder, until Hana moves.
+const RESPONDERS = Object.fromEntries(Object.entries(PRACTICE_ART).map(([id, art]) => {
+  const [x, z] = Object.values(art.response)[0];
+  return [id, { x, z }];
+}));
+const GARDENS = Object.fromEntries(SONG_SITES.map(site => [site.id, { x: site.x, z: site.z }]));
+export function presentationSubject(moment) {
+  if (!moment || moment.focusReleased !== false) return null;
+  if (moment.kind === 'restoration-finish') return GARDENS[moment.subjectId] || null;
+  if (moment.kind === 'practice-response') return RESPONDERS[moment.subjectId] || null;
+  return null;
+}
+
 // Fit the pair above the interaction panel at the existing camera angle.
 export function encounterFrame(player, subject, width, height, dialogue = false) {
   const aspect = width / height;

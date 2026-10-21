@@ -322,7 +322,8 @@ async function newWalk(event) {
   if (approved.status === 'valid' || approved.status === 'invalid') {
     text = `${t(game.language, 'Start a new walk? Your saved walk will be replaced.')}${game.phase !== 'intro' && storageState().mode !== 'study' && hasUncommittedProgress() ? ` ${t(game.language, 'Unsaved progress in the current walk will also be lost.')}` : ''}`;
   } else text = lossText() ? t(game.language, lossText()) : '';
-  if (!text) { await commitNewWalk(approved, back, event); return; }
+  // The gesture ended during the reread, so the sound request above was its only one.
+  if (!text) { await commitNewWalk(approved, back, null); return; }
   confirmState = { text, translated: true, action: 'replace', approved, back };
   showOverlay('confirmWalk', true);
 }
@@ -355,7 +356,6 @@ function confirmWalk(event) {
   const pending = confirmState;
   if (!pending || flowBusy) return;
   if (pending.action === 'unsaved') { confirmState = null; beginUnsavedWalk(pending.cause, event); return; }
-  confirmState = { ...pending, busy: true };
   commitNewWalk(pending.approved, pending.back, event);
 }
 
@@ -386,7 +386,7 @@ function playUnsaved(event, confirmed = false) {
   const loss = game.phase === 'intro' ? '' : state.mode === 'study' ? 'Start a new walk? The current study scene will be replaced.'
     : game.phase === 'playing' ? 'Start a new walk? Unsaved progress in the current walk will be lost.' : '';
   if (loss && !confirmed) {
-    confirmState = { text: loss, action: 'unsaved', cause: 'chosen', label: 'Play without saving', back: captureSurface() };
+    confirmState = { text: loss, action: 'unsaved', cause: 'chosen', label: 'New walk without saving', back: captureSurface() };
     showOverlay('confirmWalk', true);
     return;
   }
@@ -429,6 +429,7 @@ function saveStatus() {
     if (state.conflict) return t(game.language, 'Another tab saved a different walk. Reload to check it, start a new walk, or play without saving.');
     if (!state.available) return t(game.language, 'Saving is unavailable. Reload to check for a saved walk, or start a new walk without saving.');
     if (state.slot.status === 'unsupported') return t(game.language, 'Saving is unavailable. A new walk won’t be saved.');
+    if (state.slot.status === 'invalid') return t(game.language, 'A saved walk was found, but it can’t be opened. Starting a new walk will replace it.');
     return '';
   }
   // An unsaved walk never writes, so an earlier conflict no longer describes it.
@@ -461,7 +462,6 @@ function storageView() {
   return {
     pending: readPending(), busy: flowBusy || state.busy,
     offerContinue: title && offerContinue(),
-    offerNewWalk: !title || !readPending(),
     offerUnsaved: title && (readPending() || state.conflict) || finished && state.conflict && state.mode === 'normal',
     offerReload: title && !readPending() && (state.conflict || !state.available),
     offerReturn: canReturn(),
@@ -471,9 +471,17 @@ function storageView() {
     confirm: confirmState && {
       notice: confirmState.notice ? t(game.language, confirmState.notice) : '',
       text: confirmState.translated ? confirmState.text : t(game.language, confirmState.text),
-      label: t(game.language, confirmState.label || 'New walk'), busy: flowBusy,
+      label: t(game.language, confirmState.label || 'New walk'),
     },
-    failure: failureState && { text: status || t(game.language, 'Saving is unavailable. A new walk won’t be saved.') },
+    // Only a title or a finished walk starts without a loss check, so elsewhere the buttons say what they keep or start.
+    failure: failureState && {
+      text: status || t(game.language, 'Saving is unavailable. A new walk won’t be saved.'),
+      primary: t(game.language, title || finished ? 'Play without saving' : 'New walk without saving'),
+      back: t(game.language, title || game.phase === 'won'
+        ? failureState.back.overlay === 'admin' ? 'Back to Scene select' : title ? 'Back to the title' : 'Back to the ending'
+        : state.mode === 'study' ? 'Keep current scene' : 'Keep current walk'),
+    },
+    studyStatus: state.mode === 'study' ? status : '',
   };
 }
 
@@ -570,9 +578,10 @@ function onAction(action, value, event) {
     savePreferences();
     drawUI();
   } else if (action === 'dialogueFinish' && overlay === 'dialogue') {
-    const subject = game.conversation, choice = dialogueChoice, stepBefore = game.houseStep, quizzesBefore = game.quizCompleted.length;
+    // An answered quiz always moves the animal's rotation, even when its question was answered before.
+    const subject = game.conversation, choice = dialogueChoice, stepBefore = game.houseStep, quizFinalized = Boolean(game.quizSession?.answerId);
     finishConversation(game);
-    if (game.quizCompleted.length > quizzesBefore || game.houseStep > stepBefore) saveProgress();
+    if (quizFinalized || game.houseStep > stepBefore) saveProgress();
     dialogueChoice = null;
     returnOverlay = null;
     if (game.scene === 'house' && game.houseStep === stepBefore + 1) {

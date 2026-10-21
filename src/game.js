@@ -327,7 +327,7 @@ export function step(game, input = {}, dt = 0) {
   } else if (nearby.type === 'songSite' && !nearby.completed) game.songSite = nearby.id;
   else if (nearby.type === 'practice') {
     const song = SONGS.find(song => song.id === nearby.songId);
-    if (!nearby.learned) setMessage(game, 'Learn the {song} from {name} first.', { song: song.name, name: song.teacher }, 6);
+    if (!nearby.learned) setMessage(game, 'Learn the {song} from {name} first.', { song: song.name.toLowerCase(), name: song.teacher }, 6);
     else game.activeSong = { kind: 'practice', songId: song.id, targetId: nearby.id, elapsed: 0, duration: performanceDuration(song.id, 'practice'), progress: 0 };
   }
   else if (nearby.type === 'creature') openQuiz(game, nearby.id);

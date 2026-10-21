@@ -11,11 +11,12 @@ export const CHAPTERS = [
   { id: 'early-evening', tint: [.82, .8, .93], pool: '#f6c2a4', poolOpacity: .22 },
 ];
 
-const SITE_IDS = new Set(SONG_SITES.map(site => site.id));
-
+// Counts each known garden once, without building a collection on every frame.
 export function chapterFor(game) {
-  const restored = new Set((game?.restoredSites || []).filter(id => SITE_IDS.has(id)));
-  return Math.min(CHAPTERS.length - 1, restored.size);
+  const restored = game?.restoredSites || [];
+  let count = 0;
+  for (const site of SONG_SITES) if (restored.includes(site.id)) count++;
+  return Math.min(CHAPTERS.length - 1, count);
 }
 
 // Records each material's base color once. Later calls for the same material are ignored.

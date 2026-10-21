@@ -37,10 +37,7 @@ test('garden and practice pieces stay with their own interaction and off the wal
   assert.ok(MEADOW_TUFTS.some(tuft => tuft.u === 0) && MEADOW_TUFTS.some(tuft => tuft.u === 1));
   for (const [x, z] of [COTTAGE_ART.can, ...COTTAGE_ART.sprouts]) {
     assert.ok(trailDistance(x, z) > 1.4);
-    for (const target of others('cottage').filter(target => target.id !== 'home' && target.id !== 'start' || true)) {
-      if (target.id === 'cottage') continue;
-      assert.ok(Math.hypot(x - target.x, z - target.z) > reach, `cottage garden art crowds ${target.id}`);
-    }
+    for (const target of others('cottage')) assert.ok(Math.hypot(x - target.x, z - target.z) > reach, `cottage garden art crowds ${target.id}`);
   }
   assert.equal(Object.keys(PRACTICE_ART).length, 3);
   for (const spot of PRACTICE_SPOTS) {
@@ -86,5 +83,14 @@ test('window callbacks sit inside the two back windows', () => {
     assert.ok(center !== undefined, `${id} is outside a window`);
     assert.ok(Math.abs(slot.x - center) + slot.size / 2 <= 1.3, `${id} spills past the window frame`);
     assert.ok(slot.y >= 1.85 && slot.y + slot.size <= 3.45, `${id} spills above or below the glass`);
+  }
+});
+
+test('no spot inside a singing spot’s reach also reaches another target', () => {
+  // Rejects a practice spot placed where its prompt could hide a fairy, garden, or animal.
+  for (const spot of PRACTICE_SPOTS) {
+    for (const target of INTERACTIONS.filter(target => target.id !== spot.id)) {
+      assert.ok(Math.hypot(spot.x - target.x, spot.z - target.z) > 2 * reach, `${spot.id} shares reach with ${target.id}`);
+    }
   }
 });

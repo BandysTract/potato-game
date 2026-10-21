@@ -39,8 +39,9 @@ export const BROOK_ART = {
 // One small marker beside each practice spot, plus its single response.
 export const PRACTICE_ART = Object.fromEntries(PRACTICE_SPOTS.map(spot => [spot.id, {
   marker: [spot.x - .62, spot.z - .62],
-  response: spot.response === 'bird' ? { birch: [spot.x - 2.2, spot.z - 1.4] }
-    : spot.response === 'animal' ? { animal: [spot.x - 2.1, spot.z - 1.9] }
+  // Responders stand behind the spot and to screen left, so Hana never hides them.
+  response: spot.response === 'bird' ? { birch: [spot.x - 2.83, spot.z + .57] }
+    : spot.response === 'animal' ? { animal: [spot.x - 2.4, spot.z + .99] }
       : { water: [spot.x + 3.3, spot.z + .1] },
 }]));
 

@@ -5,7 +5,7 @@ import * as saveModule from '../src/save.js';
 import { POTATOES } from '../src/data.js';
 import { SEQUENCES, createSequenceGame } from '../src/sequences.js';
 import { createFakeIndexedDB } from './fake-indexeddb.js';
-import { entryPoint, trusted, walkAppTo, finishActionForApp, jumpTo } from './entry-harness.js';
+import { entryPoint, trusted, walkAppTo, finishActionForApp, jumpTo, quizAnswer } from './entry-harness.js';
 
 // Milestone 5 through the real main.js. The fake database models transactions;
 // real cross-tab isolation and browser reopen behavior are checked in a browser.
@@ -392,6 +392,8 @@ test('another tab writing between the reread and the replacement is refused on t
         ? 'Jiná karta uložila jinou výpravu. Načti stránku znovu a zkontroluj ji, začni novou výpravu, nebo hraj bez ukládání.'
         : 'Jiná karta uložila jinou výpravu. Začni novou výpravu, nebo hraj bez ukládání.');
       assert.doesNotMatch(app.view.storage.failure.text, /hraj dál/, 'No false keep-playing copy without an active walk.');
+      assert.deepEqual([app.view.storage.failure.primary, app.view.storage.failure.back],
+        ['Hrát bez ukládání', surface === 'title' ? 'Zpět na úvod' : 'Zpět k závěru'], 'Back names the surface that holds the other actions.');
       assert.equal(app.view.storage.offerContinue, false, 'The stale Continue offer is gone.');
       assert.equal(idb.value(), competing, 'The other tab’s record survives.');
       app.action('failureBack');
@@ -425,9 +427,12 @@ test('Cancel on a live walk’s unsaved-loss confirmation returns to the failure
     await quiet(idb);
     assert.equal(app.view.overlay, 'saveFailure');
     assert.equal(app.view.storage.failure.text, 'Jiná karta uložila jinou výpravu. Načti stránku znovu a zkontroluj ji, nebo hraj dál bez ukládání. Opětovným načtením přijdeš o neuložený postup.');
+    // The text offers to keep playing, so the buttons must not make starting over look like keeping the walk.
+    assert.deepEqual([app.view.storage.failure.primary, app.view.storage.failure.back], ['Nová výprava bez ukládání', 'Ponechat současnou výpravu']);
     app.gesture((event) => app.action('playUnsaved', undefined, event));
     assert.equal(app.view.overlay, 'confirmWalk');
     assert.equal(app.view.storage.confirm.text, 'Začít novou výpravu? Přijdeš o neuložený postup v současné výpravě.');
+    assert.equal(app.view.storage.confirm.label, 'Nová výprava bez ukládání');
     app.action('cancelConfirm');
     assert.equal(app.view.overlay, 'saveFailure');
     assert.deepEqual([...app.game.potatoes], [POTATOES[0].id], 'The prior game is intact.');
@@ -554,13 +559,7 @@ test('selector copy follows the real save state', async () => {
 });
 
 test('a completed supper checkpoint resumes at the chooser without starting the video', async () => {
-  const idb = database();
-  const app = await normalWalk(idb);
-  try {
-    jumpTo(app, 'serve');
-    app.action('close');
-    // A prepared scene is study; walk the real household path from a normal save instead.
-  } finally { app.dispose(); }
+  // The record is prepared here. The browser route check resumes a supper reached by real play.
   const raw = supperRecord();
   const fresh = database(raw);
   const resumed = entryPoint({ idb: fresh });
@@ -573,4 +572,95 @@ test('a completed supper checkpoint resumes at the chooser without starting the 
     resumed.frame(0);
     assert.notEqual(resumed.view.overlay, 'dance', 'Loading never starts the video.');
   } finally { resumed.dispose(); }
+});
+
+test('every finalized quiz saves the rotation, including a question answered on an earlier round', async () => {
+  // The fourth answer to one animal repeats its first question, so the completed list doesn't grow.
+  // Rejects saving only when that list grows, which leaves a reload asking the question just answered.
+  const idb = database();
+  const app = entryPoint({ idb, random: () => 0 });
+  try {
+    await quiet(idb);
+    app.gesture((event) => app.action('newWalk', undefined, event));
+    await quiet(idb);
+    let time = 0;
+    app.frame(time);
+    for (let round = 1; round <= 5; round++) {
+      gameModel.openQuiz(app.game, 'fox');
+      app.frame(time += 50);
+      quizAnswer(app, round % 2 === 0);
+      const before = puts(idb);
+      app.action('dialogueFinish');
+      await quiet(idb);
+      assert.equal(puts(idb), before + 1, `Round ${round} writes one checkpoint.`);
+      assert.equal(decoded(idb).payload.dialogueNext.fox, app.game.dialogueNext.fox, `Round ${round} saves the live rotation.`);
+    }
+  } finally { app.dispose(); }
+});
+
+test('New walk from an empty title asks for sound only inside the press', async () => {
+  // The reread ends the gesture, so a second request after it would come from no gesture at all.
+  const idb = database();
+  const app = entryPoint({ idb, gestureAudio: true });
+  try {
+    await quiet(idb);
+    app.audio.delayEnable = true;
+    app.gesture((event) => app.action('newWalk', undefined, event));
+    await quiet(idb);
+    assert.equal(app.game.phase, 'playing');
+    assert.deepEqual(app.audio.gestureCalls, [{ next: true, inGesture: true }]);
+  } finally { app.dispose(); }
+});
+
+test('the title says why an unreadable saved walk can’t continue', async () => {
+  for (const [slot, status] of [['{bad json', 'Našla se uložená výprava, ale nedá se otevřít. Nová výprava ji nahradí.'], [record(), '']]) {
+    const idb = database(slot);
+    const app = entryPoint({ idb });
+    try {
+      await quiet(idb);
+      assert.equal(app.view.storage.status, status);
+    } finally { app.dispose(); }
+  }
+});
+
+test('a study keeps its label through supper and the ending choice', async () => {
+  const idb = database(record());
+  const app = entryPoint({ idb });
+  try {
+    await quiet(idb);
+    jumpTo(app, 'serve'); app.frame(0);
+    app.window.fire('keydown', { code: 'KeyE' }); app.frame(50);
+    finishActionForApp(app); app.frame(100);
+    assert.equal(app.view.overlay, 'supper');
+    assert.equal(app.view.storage.studyStatus, 'Prohlídka scény. Postup se tu neukládá.');
+    app.action('supperContinue');
+    assert.equal(app.view.overlay, 'endingChoice');
+    assert.equal(app.view.storage.studyStatus, 'Prohlídka scény. Postup se tu neukládá.');
+  } finally { app.dispose(); }
+  const normal = database();
+  const walk = await normalWalk(normal);
+  try { assert.equal(walk.view.storage.studyStatus, '', 'A normal walk shows no study label.'); } finally { walk.dispose(); }
+});
+
+test('a refused start from Scene select names Scene select as Back’s destination', async () => {
+  // Back restores the surface that started the walk. Rejects a label that names the title or
+  // ending when Back actually returns to Scene select.
+  const idb = database(record());
+  const app = entryPoint({ idb });
+  try {
+    await quiet(idb);
+    app.action('admin');
+    app.gesture((event) => app.action('jump', 'start', event));
+    await quiet(idb);
+    assert.equal(app.view.overlay, 'confirmWalk');
+    const competing = record({ potatoes: ['potato-1'] });
+    otherTab(idb, competing);
+    app.gesture((event) => app.action('confirmWalk', undefined, event));
+    await quiet(idb);
+    assert.equal(app.view.overlay, 'saveFailure');
+    assert.equal(app.view.storage.failure.back, 'Zpět na výběr scény');
+    app.action('failureBack');
+    assert.equal(app.view.overlay, 'admin');
+    assert.equal(idb.value(), competing, 'The other tab’s record survives.');
+  } finally { app.dispose(); }
 });

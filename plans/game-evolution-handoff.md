@@ -1,5 +1,7 @@
 # Game evolution handoff
 
+Status, October 20: attempt 02 completed the steps below, apart from what its progress record lists as remaining. Read `evidence/game-evolution/attempt-02/PROGRESS.md` (local only) before acting on anything here.
+
 October 20, 2026. Attempt 01 stopped at a clean point because the session's context was filling. Work is on the local branch `game-evolution`, committed and pushed at the owner's request. The authority is still [the implementation plan](game-evolution-implementation.md). Local evidence is under `evidence/game-evolution/attempt-01/` (gitignored, so it exists only on this Mac). Read its `PROGRESS.md` first.
 
 ## How the branch is organized

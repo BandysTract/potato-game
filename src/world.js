@@ -1,13 +1,18 @@
 import * as THREE from 'three';
-import { BOUNDS, BROOK, START, HOME, POTATOES, FAIRIES, CREATURES, TRAILS, OBSTACLES, HOUSE_BOUNDS, HOUSE_TARGETS, HOUSE_OBSTACLES, SONG_SITES, HOUSE_CAT } from './data.js';
+import { BOUNDS, BROOK, START, HOME, POTATOES, FAIRIES, CREATURES, TRAILS, OBSTACLES, HOUSE_BOUNDS, HOUSE_TARGETS, HOUSE_OBSTACLES, SONG_SITES, HOUSE_CAT, PRACTICE_SPOTS, musicZoneAt } from './data.js';
 import { createSpriteTextures } from './sprites.js';
 import { createPaintedCharacters } from './characters.js';
 import { getNearby } from './game.js';
 import { barkTexture, treeTrunkGeometry, tearTexture, tearJarTexture, breezeAt } from './forest-art.js';
 import { TUNES, songPhrase } from './songs.js';
 import { createFamilyFinale } from './finale-scene.js';
-import { encounterFrame } from './framing.js';
+import { encounterFrame, presentationSubject } from './framing.js';
 import { actionFrame, createAnimatedMaterial, cycleFrame, updateAnimatedMap } from './animation.js';
+import { CHAPTERS, chapterFor, createPalette } from './palette.js';
+import { cottageValue, createRestorationState, LATE_CAP, restorationTarget, settleRestoration } from './restoration.js';
+import { QUIZ_PROPS, partMotion, partVisible, quizPropState, revealAmount } from './quiz-props.js';
+import { createPropAtlas, createRidgeTexture } from './prop-art.js';
+import { BROOK_ART, COTTAGE_ART, GROVE, MEADOW, MEADOW_TUFTS, PRACTICE_ART, SCREEN_RIGHT, TOWARD_CAMERA, WINDOW_CALLBACKS, WOODLAND_MUSHROOMS, inMeadowOpening } from './clearings.js';
 
 const phrases = Object.fromEntries(Object.keys(TUNES).map(id => [id, songPhrase(id)]));
 
@@ -162,6 +167,13 @@ export function createWorld(container) {
   house.visible = false;
   let activeGroup = outdoors;
   const rng = randomSource(7729);
+  // New clearing art draws from its own sequence, so every seeded tree and plant stays where it was.
+  const artRng = randomSource(5113);
+  const atlas = createPropAtlas(), ridgeMap = createRidgeTexture();
+  const palette = createPalette();
+  // Characters, glows, and anything recolored on each frame keep their own colors.
+  const unpainted = new Set();
+  const keep = (...objects) => { objects.flat().forEach(object => object && unpainted.add(object)); return objects[0]; };
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const motionRng = randomSource(1384), windSprites = [];
   scene.add(new THREE.HemisphereLight('#fff2d0', '#8fa57f', 1.2));
@@ -323,7 +335,7 @@ export function createWorld(container) {
   const trunkGeometry = treeTrunkGeometry();
   const crownGeometry = new THREE.IcosahedronGeometry(1, 1);
   geometries.add(trunkGeometry); geometries.add(crownGeometry);
-  function tree(x, z, kind, size = 1) {
+  function tree(x, z, kind, size = 1, random = rng) {
     const isBirch = kind === 'birch';
     const height = (isBirch ? 7.3 : 7.8) * size;
     const width = (isBirch ? 4.9 : 5.2) * size;
@@ -337,7 +349,7 @@ export function createWorld(container) {
     const branches = [];
     const fadeMaterials = [bark];
     for (let i = 0; i < crowns; i++) {
-      const radius = isBirch ? width * (.24 + rng() * .07) : width * (.46 - i * .07);
+      const radius = isBirch ? width * (.24 + random() * .07) : width * (.46 - i * .07);
       const leafMat = new THREE.SpriteMaterial({ map: painted.foliage[(isBirch ? 2 : 0) + i % 2], transparent: true, alphaTest: .1, depthWrite: false });
       materials.add(leafMat); fadeMaterials.push(leafMat);
       const spray = new THREE.Sprite(leafMat);
@@ -359,7 +371,7 @@ export function createWorld(container) {
       object.add(spray);
       branches.push({ object: spray, x: spray.position.x, z: spray.position.z });
     }
-    occluders.push({ object, x, z, height, width, kind, fadeMaterials, branches, phase: rng() * 6.28 });
+    occluders.push({ object, x, z, height, width, kind, fadeMaterials, branches, phase: random() * 6.28 });
     return object;
   }
   // Collision props use the shared obstacle positions. Other trees leave trails clear.
@@ -377,29 +389,56 @@ export function createWorld(container) {
     if (allTargets.some(target => Math.hypot(x - target.x, z - target.z) < 5.0)) return false;
     if (Math.hypot(x, z - 21) < 6.5) return false;
     if (x > 26 && x < 34 && z > -42 && z < 16) return false;
-    return !occluders.some(t => Math.hypot(x - t.x, z - t.z) < 3.4);
+    return !occluders.some(t => Math.hypot(x - t.x, z - t.z) < 3.4) && !skippedTrees.some(t => Math.hypot(x - t.x, z - t.z) < 3.4);
+  }
+  // A tree left out of the open meadow, or off a practice spot, still claims its
+  // place and its random numbers (6 for a birch, 1 for a fir). Every other tree
+  // therefore grows exactly where it did before.
+  const skippedTrees = [];
+  const openGround = (x, z) => inMeadowOpening(x, z) || PRACTICE_SPOTS.some(spot => Math.hypot(x - spot.x, z - spot.z) < 3.2);
+  function skipTree(x, z, kind) {
+    skippedTrees.push({ x, z });
+    for (let n = kind === 'birch' ? 6 : 1; n > 0; n--) rng();
   }
   for (let i = 0; i < 450; i++) {
     const x = BOUNDS.minX - 11 + rng() * (BOUNDS.maxX - BOUNDS.minX + 22), z = BOUNDS.minZ - 11 + rng() * (BOUNDS.maxZ - BOUNDS.minZ + 22);
-    if (clearForTree(x, z)) tree(x, z, x < -13 && z > -25 ? 'birch' : 'fir', .72 + rng() * .42);
+    if (!clearForTree(x, z)) continue;
+    const kind = x < -13 && z > -25 ? 'birch' : 'fir', size = .72 + rng() * .42;
+    if (openGround(x, z)) skipTree(x, z, kind);
+    else tree(x, z, kind, size);
   }
   // Distant woods and rounded ridges conceal the edge of the walking area.
   for (let i = 0; i < 90; i++) {
     const angle = rng() * Math.PI * 2, radius = 53 + rng() * 24;
-    tree(Math.cos(angle) * radius, Math.sin(angle) * radius, 'fir', 1 + rng() * .65);
+    const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius, size = 1 + rng() * .65;
+    if (inMeadowOpening(x, z)) skipTree(x, z, 'fir');
+    else tree(x, z, 'fir', size);
   }
+  // In the meadow the painted ridge takes over from the far hills and northern banks,
+  // which fade out as it fades in. They draw first among see-through objects.
+  const farHills = [];
   for (let i = 0; i < 11; i++) {
     const x = -72 + i * 14, z = -58 - rng() * 13;
-    const hill = mesh(new THREE.SphereGeometry(12 + rng() * 9, 24, 12), solidMaterial(i % 2 ? '#a9bd9c' : '#b6c6a2'), x, -1, z);
+    const hill = mesh(new THREE.SphereGeometry(12 + rng() * 9, 24, 12), solidMaterial(i % 2 ? '#a9bd9c' : '#b6c6a2', { transparent: true }), x, -1, z);
     hill.scale.set(1.5, .5 + rng() * .3, 1);
+    farHills.push(hill);
   }
   // Raised banks sit outside the walking bounds, with no hidden collision edges.
   const bankGeometry = new THREE.SphereGeometry(1, 16, 8);
-  const bankMaterial = solidMaterial('#91a778', { map: floorMap });
+  const bankMaterial = solidMaterial('#91a778', { map: floorMap }), northBankMaterial = solidMaterial('#91a778', { map: floorMap, transparent: true });
   for (const [x, z, sx, sz] of [[-40, -24, 6, 13], [-40, 10, 6, 12], [-21, -46, 13, 6], [11, -46, 12, 6], [42, 9, 7, 13]]) {
-    const bank = mesh(bankGeometry, bankMaterial, x, -.35, z); bank.scale.set(sx, 2.2, sz);
+    const bank = mesh(bankGeometry, z < -40 ? northBankMaterial : bankMaterial, x, -.35, z); bank.scale.set(sx, 2.2, sz);
+    if (z < -40) farHills.push(bank);
   }
+  for (const hill of farHills) hill.renderOrder = -2;
 
+  const newArtSpots = [
+    ...PRACTICE_SPOTS.map(spot => [spot.x, spot.z, 1.75]),
+    ...Object.values(PRACTICE_ART).flatMap(art => [[...art.marker, 1], ...Object.values(art.response).map(point => [...point, 1.2])]),
+    ...WOODLAND_MUSHROOMS.map(([x, z]) => [x, z, .8]),
+    ...MEADOW_TUFTS.map(({ x, z }) => [x, z, .6]),
+    [...COTTAGE_ART.can, 1], ...BROOK_ART.roots.map(point => [...point, 1.4]),
+  ];
   // Varied low plants deepen the woodland while keeping the walking route clear.
   for (let i = 0; i < 620; i++) {
     const x = BOUNDS.minX - 5 + rng() * (BOUNDS.maxX - BOUNDS.minX + 10), z = BOUNDS.minZ - 4 + rng() * (BOUNDS.maxZ - BOUNDS.minZ + 8);
@@ -407,6 +446,8 @@ export function createWorld(container) {
     if (x > 27 && z < 9) continue;
     const map = i % 13 === 0 ? maps.stone : i % 7 === 0 ? maps.mushrooms : i % 4 === 0 ? maps.blueFlowers : i % 3 === 0 ? maps.flowers : i % 2 === 0 ? maps.fern : maps.grasses;
     const size = .48 + rng() * .68;
+    // New clearing pieces keep their ground clear. The skip follows the size roll, so later plants don't move.
+    if (newArtSpots.some(([px, pz, clearance]) => Math.hypot(x - px, z - pz) < clearance)) continue;
     const object = sprite(map, x, z, size * 1.7, size * (map === maps.stone ? 1.05 : 1.3));
     if (map !== maps.stone && map !== maps.mushrooms) sway(object);
   }
@@ -454,12 +495,16 @@ export function createWorld(container) {
     const stone = flatDisc(.05 + Math.sin(i * 2) * .2, 20 - i * .65, .42, '#b7b495', .06);
     stone.scale.set(1.25, .8, 1);
   }
+  // The rain darkens the fence, so it keeps its own colors rather than the chapter's.
+  const fence = [];
   for (let i = 0; i < 5; i++) {
     const x = 3.5 + i * .55;
-    mesh(new THREE.BoxGeometry(.09, .65, .1), material('#a3996f'), x, .34, 20.5);
+    fence.push(mesh(new THREE.BoxGeometry(.09, .65, .1), material('#a3996f'), x, .34, 20.5));
   }
-  mesh(new THREE.BoxGeometry(2.7, .09, .08), material('#bbaf81'), 4.6, .54, 20.5);
-  mesh(new THREE.BoxGeometry(2.7, .09, .08), material('#bbaf81'), 4.6, .26, 20.5);
+  fence.push(mesh(new THREE.BoxGeometry(2.7, .09, .08), material('#bbaf81'), 4.6, .54, 20.5));
+  fence.push(mesh(new THREE.BoxGeometry(2.7, .09, .08), material('#bbaf81'), 4.6, .26, 20.5));
+  const fenceColors = fence.map(part => ({ dry: part.material.color.clone(), wet: part.material.color.clone().multiplyScalar(.72) }));
+  keep(fence);
   foliage(maps.flowers, -3.8, 21, 1.5, 1.3);
   foliage(maps.flowers, 3.5, 21.8, 1.5, 1.3);
   // A Czech trail blaze: white, blue, white bands on an upright trail post.
@@ -555,6 +600,128 @@ export function createWorld(container) {
     const indicator = sprite(maps.conversation, target.x, target.z, .75, .75, indicatorHeight + .15);
     return { ...target, object, indicator, indicatorHeight, height, index: i, width: height };
   });
+  for (const target of potatoObjects) keep(target.item, target.glow, target.halo, target.plants);
+  for (const site of siteObjects) keep(site.ring, site.bed, site.flowers);
+  for (const target of fairyObjects) keep(target.object, target.glow, target.halo, target.tear, target.tearGlow);
+  for (const target of creatureObjects) keep(target.object, target.indicator);
+  keep(rain, tearLights, homeHalo);
+
+  // Each clearing has its own light. The pools and shafts take the chapter's light color.
+  const prop = (cell, x, z, width, height, y = .03, options = {}) => sprite(atlas.cell(cell), x, z, width, height, y, options);
+  function lightPool({ x, z, width, depth }) {
+    const pool = mesh(new THREE.PlaneGeometry(width, depth), material('#ffffff', { map: maps.glow, transparent: true, opacity: .2, depthWrite: false }), x, .045, z);
+    pool.rotation.x = -Math.PI / 2; return keep(pool);
+  }
+  const lightPools = [lightPool(GROVE.light), lightPool(MEADOW.light)];
+  // Birch grove: pale trunks stand behind the trail, around soft shafts of light.
+  for (const [x, z, size] of GROVE.birches) tree(x, z, 'birch', size, artRng);
+  const shafts = GROVE.shafts.map(([x, z], i) => keep(prop('sunRays', x, z, 2.3 + i * .35, 5.4, .05, { opacity: .32 })));
+  // Brook: dark roots on the trail-side bank and a few still reflections on the water.
+  for (const [x, z] of BROOK_ART.roots) prop('brookRoots', x, z, 2.7, 1.35, .02);
+  BROOK_ART.reflections.forEach(([x, z, size], i) => {
+    const sheen = mesh(new THREE.PlaneGeometry(size * 1.7, size * .6), material('#eef5e8', { map: maps.glow, transparent: true, opacity: .2, depthWrite: false }), x, .056, z);
+    sheen.rotation.set(-Math.PI / 2, 0, -.55 + i * .25);
+  });
+
+  // Practice spots: a song stone beside each one, and a single answering response.
+  const practiceArt = PRACTICE_SPOTS.map(spot => {
+    const art = PRACTICE_ART[spot.id];
+    const ring = keep(mesh(new THREE.RingGeometry(.9, .94, 40), material('#fff0bb', { transparent: true, opacity: .4, side: THREE.DoubleSide, depthWrite: false }), spot.x, .07, spot.z));
+    ring.rotation.x = -Math.PI / 2;
+    prop('songStone', art.marker[0], art.marker[1], 1, 1, .02);
+    const entry = { spot, ring };
+    if (art.response.birch) {
+      const [x, z] = art.response.birch;
+      tree(x, z, 'birch', .62, artRng);
+      // The bird perches on the camera side of the crown, in front of its leaves.
+      entry.singer = keep(prop('birdPerched', x + .95, z + .95, .82, .82, 1.75));
+      entry.note = keep(prop('noteClean', x + .95, z + .95, .44, .44, 2.45, { opacity: 0 }));
+      entry.voice = 'birdSinging'; entry.note.renderOrder = 1;
+    } else if (art.response.animal) {
+      const [x, z] = art.response.animal;
+      shadow(x, z, .9, .5, .4);
+      entry.singer = keep(prop('hare', x, z, 1.05, 1.05, .02));
+      entry.note = keep(prop('noteWobbly', x + .1, z + .1, .46, .46, 1.05, { opacity: 0 }));
+    } else {
+      const [x, z] = art.response.water;
+      entry.bloom = keep(mesh(new THREE.PlaneGeometry(2.4, 1.6), material('#ffffff', { map: atlas.cell('reflectionBloom'), transparent: true, opacity: 0, depthWrite: false }), x, .058, z));
+      entry.bloom.rotation.x = -Math.PI / 2; entry.bloom.visible = false;
+    }
+    for (const object of [entry.singer, entry.note]) if (object) object.userData.base = object.position.clone();
+    return entry;
+  });
+
+  // Garden pieces that answer each restoration song. They keep their own colors.
+  const mushrooms = WOODLAND_MUSHROOMS.map(([x, z, size]) => ({
+    size,
+    stem: keep(prop('stem', x, z, .26 * size, .72 * size, .02)),
+    cap: keep(prop('capBrown', x, z + .02, .64 * size, .64 * size, .02)),
+  }));
+  const tufts = MEADOW_TUFTS.map(({ x, z }) => keep(sprite(maps.grasses, x, z, .78, .62, .03)));
+  keep(prop('wateringCan', COTTAGE_ART.can[0], COTTAGE_ART.can[1], .9, .9, .02));
+  const canGlint = keep(prop('wetGlint', COTTAGE_ART.can[0] + .12, COTTAGE_ART.can[1] + .12, .34, .34, .52, { opacity: 0 }));
+  const sprouts = COTTAGE_ART.sprouts.map(([x, z]) => keep(sprite(maps.potatoLeaves, x, z, .8, .62, .1)));
+  const sproutDrops = COTTAGE_ART.sprouts.map(([x, z]) => keep(prop('drip', x + .16, z + .08, .15, .15, .46, { opacity: 0 })));
+  const fenceGlints = COTTAGE_ART.fenceGlints.map(([x, z]) => keep(prop('wetGlint', x, z + .1, .26, .26, .5, { opacity: 0 })));
+  canGlint.visible = false;
+  const restorations = siteObjects.map(site => {
+    const tuftU = site.id === 'meadow' ? MEADOW_TUFTS.map(tuft => tuft.u) : [];
+    return { site, target: createRestorationState(site.id, tuftU), display: createRestorationState(site.id, tuftU) };
+  });
+  const dryBed = new THREE.Color('#907757'), wetBed = new THREE.Color('#52633b');
+  const dryPlant = new THREE.Color('#9f9470'), freshPlant = new THREE.Color('#ffffff'), dryFlower = new THREE.Color('#918366');
+
+  // Quiz props, one group per question, shown only inside their own encounter.
+  const quizGroups = Object.fromEntries(Object.entries(QUIZ_PROPS).map(([quizId, parts]) => {
+    const group = keep(new THREE.Group()); group.name = `quiz-props-${quizId}`; group.visible = false; outdoors.add(group);
+    const pieces = parts.map(part => {
+      const mat = new THREE.SpriteMaterial({ map: atlas.cell(part.cell), transparent: true, depthWrite: false, alphaTest: .02,
+        ...(part.glow ? { blending: THREE.AdditiveBlending } : {}) });
+      materials.add(mat);
+      const object = new THREE.Sprite(mat); object.center.set(.5, 0);
+      const x = part.x * SCREEN_RIGHT[0] + (part.d || 0) * TOWARD_CAMERA[0], z = part.x * SCREEN_RIGHT[1] + (part.d || 0) * TOWARD_CAMERA[1];
+      object.position.set(x, part.y || 0, z); group.add(object);
+      return { part, object, x, z, cell: atlas.cell(part.cell), alt: part.alt ? atlas.cell(part.alt) : null, still: part.still ? atlas.cell(part.still) : null };
+    });
+    return [quizId, { group, pieces }];
+  }));
+  const partPose = { dx: 0, dy: 0, scaleX: 1, opacity: 1, useAlt: false, useStill: false };
+  let shownQuiz = null, revealTime = 0;
+  const quizView = { animalId: null, quizId: null, answered: false };
+
+  // Gathering: a hand-to-ground puff, a little lifted soil, and a landing in the basket.
+  const gatherDust = keep(prop('dustPuff', 0, 0, .95, .48, .03, { opacity: 0 }));
+  const gatherSoil = keep(prop('soilCrumbs', 0, 0, 1.05, .52, .06, { opacity: 0 }));
+  const basketLanding = keep(prop('wetGlint', 0, 0, .34, .34, 1, { opacity: 0, color: '#fff1c4' }));
+  gatherDust.visible = gatherSoil.visible = basketLanding.visible = false;
+  let landingAge = 1;
+  // The gather pose always faces screen right: the hand meets the ground to the right of
+  // Hana's feet, and the basket rides at her other side. Offsets are screen right, height.
+  const GATHER_HAND = .8, BASKET_RIM = [-.37, 1.2];
+
+  // The fixed camera never reaches the horizon, so the meadow's distant ridge is
+  // a painted band fixed to the view: the top fifth, set where its lower edge meets the ground.
+  scene.add(camera);
+  const ridgeMaterial = new THREE.MeshBasicMaterial({ map: ridgeMap, transparent: true, opacity: 0, fog: false, depthWrite: false });
+  materials.add(ridgeMaterial); palette.add(ridgeMaterial);
+  const ridgeGeometry = new THREE.PlaneGeometry(1, 1); geometries.add(ridgeGeometry);
+  const ridge = new THREE.Mesh(ridgeGeometry, ridgeMaterial);
+  ridge.name = 'mountain-backdrop'; ridge.renderOrder = -1; ridge.frustumCulled = false; ridge.visible = false;
+  camera.add(ridge);
+  const RIDGE_ANGLE = THREE.MathUtils.degToRad(19.5), CAMERA_PITCH = Math.PI / 6, RIDGE_PEAK = 1180 / 2048;
+  let ridgeOpacity = 0;
+  const peekCorner = new THREE.Vector3();
+  function overlapsProjector(slot) {
+    const bounds = familyFinale.projectorBounds();
+    if (!(bounds.width > 0 && bounds.height > 0)) return false;
+    let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+    for (let corner = 0; corner < 4; corner++) {
+      peekCorner.set(slot.x + (corner % 2 - .5) * slot.size, slot.y + (corner > 1 ? slot.size : 0), HOUSE_BOUNDS.minZ + .36).project(camera);
+      const sx = (peekCorner.x + 1) * width / 2, sy = (1 - peekCorner.y) * height / 2;
+      left = Math.min(left, sx); right = Math.max(right, sx); top = Math.min(top, sy); bottom = Math.max(bottom, sy);
+    }
+    return right > bounds.left && left < bounds.left + bounds.width && bottom > bounds.top && top < bounds.top + bounds.height;
+  }
 
   // The front and right walls are cut away so every family member stays visible.
   activeGroup = house;
@@ -590,12 +757,26 @@ export function createWorld(container) {
   }
   windowAt(-3.4, -7.79); windowAt(6.2, -7.79); windowAt(-9.79, 2.5, true);
   // Painted pools of window light stay on the floor and leave all aisles open.
+  // Window light is cool beside the stove's warm glow.
   for (const [x, z] of [[-3.4, -5.3], [6.2, -5.3], [-7.2, 2.5]]) {
     const beam = new THREE.Shape();
     beam.moveTo(-1.1, -1.8); beam.lineTo(1.1, -1.8); beam.lineTo(2.7, 2.4); beam.lineTo(.2, 2.4); beam.closePath();
-    const light = mesh(new THREE.ShapeGeometry(beam), material('#f5dfaa', { transparent: true, opacity: .2, depthWrite: false }), x, .042, z);
+    const light = mesh(new THREE.ShapeGeometry(beam), material('#dde8e4', { transparent: true, opacity: .2, depthWrite: false }), x, .042, z);
     light.rotation.x = -Math.PI / 2;
   }
+  // Animals answered on the walk may look in at supper, behind the family.
+  const windowPeeks = Object.entries(WINDOW_CALLBACKS).map(([id, slot]) => {
+    const cell = `peek${id[0].toUpperCase()}${id.slice(1)}`;
+    const peek = mesh(new THREE.PlaneGeometry(slot.size, slot.size), material('#e6ece0', { map: atlas.cell(cell), transparent: true, alphaTest: .05, depthWrite: false }),
+      slot.x, slot.y + slot.size / 2, HOUSE_BOUNDS.minZ + .36);
+    peek.name = `window-${id}`; peek.visible = false;
+    return { id, cell, slot, peek };
+  });
+  let disposed = false;
+  painted.ready.then(() => {
+    if (disposed) return;
+    for (const { id, cell, slot } of windowPeeks) atlas.paintPeek(cell, painted.creatures[CREATURES.findIndex(creature => creature.id === id)][0].image, slot.flip);
+  }).catch(() => {});
   // Woven rug and embroidered bands echo the cottage's blue and red colors.
   const rug = mesh(new THREE.PlaneGeometry(8.8, 5.6), material('#ffffff', { map: clothMap }), 0, .055, 2.3);
   rug.rotation.x = -Math.PI / 2;
@@ -656,6 +837,8 @@ export function createWorld(container) {
     const object = sprite(maps.glow, stove.x - .25 + i * .25, stove.z, .65, .9, 2.08 + i * .22, { color: '#fff1d2', opacity: .22 });
     object.center.set(.5, .5); return object;
   });
+  const stoveGlow = mesh(new THREE.PlaneGeometry(4.6, 3.2), material('#ffc684', { map: maps.glow, transparent: true, opacity: .14, depthWrite: false }), stove.x, .045, stove.z + 1.9);
+  stoveGlow.rotation.x = -Math.PI / 2;
   shadow(table.x, table.z, 2.9, 1.8, .5);
   mesh(new THREE.BoxGeometry(3.25, .18, 1.85), roomWood, table.x, 1.4, table.z);
   for (const x of [-1.3, 1.3]) for (const z of [-.65, .65]) mesh(new THREE.BoxGeometry(.16, 1.35, .16), roomEdge, table.x + x, .7, table.z + z);
@@ -665,11 +848,13 @@ export function createWorld(container) {
     mesh(new THREE.BoxGeometry(.14, 1.55, .9), roomEdge, table.x + x * 1.2, 1.04, table.z);
     for (const z of [-.33, .33]) mesh(new THREE.BoxGeometry(.12, .74, .12), roomEdge, table.x + x, .37, table.z + z);
   }
-  const dinner = [];
+  const dinner = [], supperSteam = [];
   for (const x of [-.65, .65]) {
     const plate = mesh(new THREE.CylinderGeometry(.32, .29, .05, 32), linen, table.x + x, 1.51, table.z);
     const meal = mesh(new THREE.SphereGeometry(.23, 16, 10), solidMaterial('#d7bb78'), table.x + x, 1.57, table.z);
     meal.scale.set(1, .35, 1); dinner.push(meal);
+    const vapor = sprite(maps.glow, table.x + x, table.z, .34, .62, 1.7, { color: '#fff6e8', opacity: 0 });
+    vapor.center.set(.5, .5); vapor.visible = false; supperSteam.push(vapor);
     mesh(new THREE.CylinderGeometry(.13, .1, .23, 24), solidMaterial('#9ab3a1'), table.x + x, 1.63, table.z - .46);
     plate.rotation.y = .15;
   }
@@ -706,6 +891,16 @@ export function createWorld(container) {
     const petal = sprite(maps.glow, START.x, START.z, .22, .38, 2.7, { color: fairy.color, opacity: .8 });
     petal.name = 'forest-crown-accent'; return petal;
   });
+  // The blouse's embroidery opens into a branch-and-star frame for the reveal, then fades once.
+  const embroideryFrame = Array.from({ length: 9 }, (_, i) => {
+    const kind = i % 3 === 1 ? 'emBranch' : i % 3 === 2 ? 'emFlower' : 'emStar';
+    const angle = Math.PI * (-.12 + i / 8 * 1.24);
+    const piece = sprite(atlas.cell(kind), START.x, START.z, kind === 'emBranch' ? .78 : .6, kind === 'emBranch' ? .78 : .6, 1.6,
+      { color: FAIRIES[i % 3].color, opacity: 0 });
+    piece.name = 'goddess-embroidery'; piece.center.set(.5, .5); piece.visible = false; piece.renderOrder = 1;
+    piece.material.rotation = kind === 'emBranch' ? angle - Math.PI / 2 : 0;
+    return { piece, angle, size: piece.scale.x };
+  });
   const familyFinale = createFamilyFinale(scene, painted, maps.shadow);
   activeGroup = outdoors;
   // Soft motes use one draw call, even on small screens.
@@ -731,6 +926,13 @@ export function createWorld(container) {
     });
     butterflies.push({ insect, wings, x, z });
   }
+  // Record every outdoor scenery color once. Chapter changes then derive from these bases.
+  (function paint(object) {
+    if (unpainted.has(object)) return;
+    if (object.material && object.material.blending !== THREE.AdditiveBlending) palette.add(object.material);
+    object.children.forEach(paint);
+  })(outdoors);
+  const outdoorSky = palette.addColor(new THREE.Color('#b7c9b0')), indoorSky = new THREE.Color('#c3ad8b');
 
   const focus = new THREE.Vector3(-8, 0, 18);
   const desiredFocus = new THREE.Vector3();
@@ -771,7 +973,14 @@ export function createWorld(container) {
     const goddess = won && game.ending === 'goddess';
     const mobile = width <= 700;
     outdoors.visible = !indoors; house.visible = indoors;
-    scene.background.set(indoors ? '#c3ad8b' : '#b7c9b0');
+    // Outdoor light follows restored gardens. Nothing changes until the chapter does.
+    const chapter = chapterFor(game);
+    if (palette.apply(chapter)) {
+      const light = CHAPTERS[chapter];
+      for (const pool of lightPools) { pool.material.color.set(light.pool); pool.material.opacity = light.poolOpacity; }
+      for (const shaft of shafts) shaft.material.color.set(light.pool);
+    }
+    scene.background.copy(indoors ? indoorSky : outdoorSky);
     scene.fog.color.copy(scene.background);
     desiredFocus.set(intro ? (mobile ? 0 : -2) : player.x,
       won ? -2.8 : .8, // Keep supper above the chooser, with the same focus throughout the reveal.
@@ -782,7 +991,7 @@ export function createWorld(container) {
       : moment?.kind === 'fairy-gift' && !moment.focusReleased ? moment.subjectId : null;
     const care = indoors && !game.conversation && moment?.kind.startsWith('aldo-');
     const watchingJohn = indoors && moment?.kind === 'john-bowls' && !player.moving && Math.hypot(player.x - john.x, player.z - john.z) < 2.3;
-    const subject = animal || FAIRIES.find(subject => subject.id === fairyId) || (care ? cot : null);
+    const subject = animal || FAIRIES.find(subject => subject.id === fairyId) || (care ? cot : null) || (!indoors && presentationSubject(moment));
     const framing = !won && subject ? encounterFrame(player, subject, width, height, Boolean(animal)) : null;
     if (framing) desiredFocus.set(framing.x, framing.y, framing.z);
     const changedScene = resetPerformance || previousScene !== (indoors ? 'house' : 'outdoors') || (intro && previousPhase !== 'intro') || dancing !== previousDance;
@@ -823,7 +1032,7 @@ export function createWorld(container) {
     const note = phrase?.notes.find(note => responseTime >= note.at && responseTime < note.at + note.duration);
     const sounding = note?.note != null;
     const singFrame = !sounding ? (responseTime < 0 ? 0 : painted.singFrameCount - 1) : reducedMotion.matches ? 2 : cycleFrame(responseTime, 3, painted.singFrameCount);
-    const songTarget = performance && (performance.kind === 'learn' ? FAIRIES : SONG_SITES).find(target => target.id === performance.targetId);
+    const songTarget = performance && (performance.kind === 'learn' ? FAIRIES : performance.kind === 'practice' ? PRACTICE_SPOTS : SONG_SITES).find(target => target.id === performance.targetId);
     const singLeft = songTarget && songTarget.x - songTarget.z < player.x - player.z;
     const careFrame = care ? reducedMotion.matches ? 3 : Math.min(3, Math.floor(moment.elapsed / .28)) : 0;
     const hanaMap = transformed ? painted.actions[8] : won ? painted.actions[7] : care ? painted.care[careFrame] : watchingJohn ? painted.idle[6] : animal ? painted.idle[player.x - player.z <= animal.x - animal.z ? 0 : 6] : performance ? painted.sing[singFrame + (singLeft ? painted.singFrameCount : 0)]
@@ -946,19 +1155,61 @@ export function createWorld(container) {
     tearJar.position.y += tuck * .22;
     tearJar.scale.set(.7 * (1 - tuck * .3), .88 * (1 - tuck * .3), 1);
     tearJar.material.opacity = 1 - tuck;
-    for (const site of siteObjects) {
+    // Each garden follows its restoration song note by note. Until the reward, the
+    // reaction is provisional and eases back if the singing stops.
+    for (const { site, target: goal, display } of restorations) {
+      restorationTarget(goal, site, game, moment, reducedMotion.matches);
+      settleRestoration(display, goal, dt, reducedMotion.matches, changedScene);
       const restored = game.restoredSites.includes(site.id);
       site.bloom = reducedMotion.matches || changedScene ? Number(restored) : THREE.MathUtils.lerp(site.bloom, Number(restored), 1 - Math.exp(-dt * 3));
-      if (site.bed) site.bed.material.color.set(restored ? '#52633b' : '#907757');
       site.ring.material.color.set(restored ? '#c6dc9b' : '#dcd0aa');
-      site.brambles.forEach((vine, i) => {
-        vine.scale.set(1 + site.bloom * .7, 1 - site.bloom * .93, 1 + site.bloom * .7);
-        vine.rotation.y = site.bloom * (i % 2 ? .3 : -.3);
+      if (site.id === 'woodland') {
+        site.brambles.forEach((vine, i) => {
+          const open = display.vines[i];
+          vine.scale.set(1 + open * .7, 1 - open * .93, 1 + open * .7);
+          vine.rotation.y = open * (i % 2 ? .3 : -.3);
+        });
+        mushrooms.forEach(({ size, stem, cap }, j) => {
+          const grow = display.grow[j], tip = display.tip[j];
+          const stemHeight = .72 * size * Math.max(.04, grow);
+          stem.scale.y = stemHeight; stem.visible = grow > .02;
+          const capSize = .64 * size * (.62 + grow * .38);
+          cap.scale.set(capSize, capSize, 1);
+          // The cap's painted rim sits 30% up its cell, so it overlaps the stem's top.
+          cap.position.y = .02 + (grow > .02 ? stemHeight * .86 : 0) - capSize * .32 + tip * .07;
+          cap.material.rotation = tip * (j % 2 ? -.22 : .22);
+        });
+      } else if (site.id === 'meadow') {
+        tufts.forEach((tuft, i) => {
+          const grass = display.grass[i];
+          tuft.scale.y = .62 * (.45 + grass * .75);
+          tuft.material.color.copy(dryPlant).lerp(freshPlant, grass);
+          tuft.material.rotation = -.42 * display.bend[i];
+        });
+      } else if (site.id === 'cottage') {
+        const wet = cottageValue(display, 'bed'), fenceWet = cottageValue(display, 'fence'), leaves = cottageValue(display, 'leaves'), filled = cottageValue(display, 'can');
+        site.bed.material.color.copy(dryBed).lerp(wetBed, wet);
+        fence.forEach((part, i) => part.material.color.copy(fenceColors[i].dry).lerp(fenceColors[i].wet, fenceWet));
+        const twinkle = reducedMotion.matches ? 1 : .75 + Math.sin(motionTime * 2.4) * .25;
+        fenceGlints.forEach((glint, i) => { glint.visible = fenceWet > .02; glint.material.opacity = fenceWet * (reducedMotion.matches ? .7 : .55 + Math.sin(motionTime * 2 + i * 1.7) * .3); });
+        sprouts.forEach((sprout, i) => {
+          sprout.scale.set(.8 * (.55 + wet * .45), .62 * (.4 + wet * .6), 1);
+          sprout.material.color.copy(dryPlant).lerp(freshPlant, wet);
+          sproutDrops[i].visible = leaves > .02;
+          sproutDrops[i].material.opacity = leaves * (restored ? .55 : .9) * twinkle;
+        });
+        canGlint.visible = filled > .02; canGlint.material.opacity = filled * .8 * twinkle;
+        rainMat.opacity = .85 * cottageValue(display, 'rain');
+        rain.visible = rainMat.opacity > .01;
+      }
+      const flowerOpen = site.id === 'meadow' ? null : site.bloom;
+      site.flowers.forEach((flower, j) => {
+        const open = flowerOpen ?? display.flowers[j];
+        flower.scale.y = .35 + open * .8;
+        flower.material.color.copy(dryFlower).lerp(freshPlant, open);
       });
-      site.flowers.forEach(flower => { flower.scale.y = .35 + site.bloom * .8; flower.material.color.set(restored ? '#ffffff' : '#918366'); });
     }
     const watering = game.activeSong?.kind === 'restore' && game.activeSong.targetId === 'cottage' && game.activeSong.songId === 'rain' && collectedTears.length === 3;
-    rain.visible = Boolean(watering && game.activeSong.progress > .35);
     tearLights.forEach(light => { light.visible = Boolean(watering); });
     if (rain.visible) {
       for (let i = 0; i < rainSeeds.length; i++) {
@@ -977,6 +1228,127 @@ export function createWorld(container) {
       updateAnimatedMap(target.object.material, painted.creatures[target.index][frame + (turn < 0 ? painted.creatureFrameCount : 0)], time, reducedMotion.matches || resetPerformance);
       target.indicator.material.opacity = (game.talked || []).includes(target.id) ? .32 : .9;
       target.indicator.position.y = target.indicatorHeight + .15 + Math.sin(motionTime * 1.6 + target.index) * .06;
+    }
+    // Quiz props stand 1.5 units in front of whichever of Hana and the animal is nearer the camera.
+    // On a short landscape screen the panel takes most of the view, so they stand closer.
+    const quiz = quizPropState(game, quizView), quizId = quiz?.quizId ?? null;
+    if (quizId !== shownQuiz) {
+      if (shownQuiz) quizGroups[shownQuiz].group.visible = false;
+      shownQuiz = quizId; revealTime = 0;
+    }
+    if (quiz) {
+      const { group, pieces } = quizGroups[quiz.quizId];
+      const creature = CREATURES.find(subject => subject.id === quiz.animalId);
+      revealTime = quiz.answered ? revealTime + dt : 0;
+      const reveal = revealAmount(quiz.answered, revealTime, reducedMotion.matches);
+      const across = (hana.position.x * SCREEN_RIGHT[0] + hana.position.z * SCREEN_RIGHT[1] + creature.x * SCREEN_RIGHT[0] + creature.z * SCREEN_RIGHT[1]) / 2;
+      const depth = Math.max(hana.position.x * TOWARD_CAMERA[0] + hana.position.z * TOWARD_CAMERA[1], creature.x * TOWARD_CAMERA[0] + creature.z * TOWARD_CAMERA[1]) + (height < 520 ? .85 : 1.5);
+      group.position.set(across * SCREEN_RIGHT[0] + depth * TOWARD_CAMERA[0], 0, across * SCREEN_RIGHT[1] + depth * TOWARD_CAMERA[1]);
+      group.visible = true;
+      for (const piece of pieces) {
+        const { part, object } = piece;
+        object.visible = partVisible(part, quiz.answered);
+        if (!object.visible) continue;
+        partMotion(part, motionTime, reducedMotion.matches, partPose);
+        object.material.map = partPose.useStill ? piece.still : partPose.useAlt ? piece.alt : piece.cell;
+        object.material.opacity = partPose.opacity * (part.phase === 'after' ? reveal : 1);
+        object.scale.set(part.w * partPose.scaleX, part.h, 1);
+        object.position.set(piece.x + partPose.dx * SCREEN_RIGHT[0], (part.y || 0) + partPose.dy + (part.lift ? reveal * .22 : 0), piece.z + partPose.dx * SCREEN_RIGHT[1]);
+      }
+    }
+    // A finished practice phrase gets one answer: a bird, a hare's wobbly note, or a bloom on the water.
+    for (const entry of practiceArt) {
+      const responding = !indoors && moment?.kind === 'practice-response' && moment.subjectId === entry.spot.id;
+      const age = responding ? moment.elapsed : -1;
+      const near = Math.hypot(player.x - entry.spot.x, player.z - entry.spot.z) < 3;
+      entry.ring.material.opacity = game.activeSong?.targetId === entry.spot.id ? .8 : near ? .6 : .38;
+      if (entry.singer) {
+        const singing = responding && age > .15 && age < 1.95;
+        const rise = reducedMotion.matches ? .45 : THREE.MathUtils.clamp((age - .25) / 1.6, 0, 1);
+        if (entry.voice) entry.singer.material.map = atlas.cell(singing && (reducedMotion.matches || Math.floor(age / .28) % 2 === 0) ? 'birdSinging' : 'birdPerched');
+        else entry.singer.material.rotation = singing && !reducedMotion.matches ? Math.sin(age * 9) * .07 : 0;
+        entry.note.visible = singing;
+        entry.note.position.y = entry.note.userData.base.y + rise * .75;
+        entry.note.material.opacity = reducedMotion.matches ? 1 : Math.sin(rise * Math.PI) * .95;
+        // The hare's note can't hold its pitch and sags as it drifts away.
+        if (!entry.voice) entry.note.material.rotation = reducedMotion.matches ? -.3 : Math.sin(age * 6) * .1 - rise * .35;
+      } else {
+        entry.bloom.visible = responding;
+        if (responding) {
+          const open = reducedMotion.matches ? 1 : THREE.MathUtils.smoothstep(age, 0, .9);
+          entry.bloom.scale.set(.45 + open * .55, .45 + open * .55, 1);
+          entry.bloom.material.opacity = .9 * (reducedMotion.matches ? 1 : open * (1 - THREE.MathUtils.smoothstep(age, 1.6, 2.4)));
+        }
+      }
+    }
+    // Gathering: the hand meets the ground, a little soil lifts, then the potato lands in the basket.
+    const gatherTarget = !indoors && action?.kind === 'gather' ? POTATOES.find(potato => potato.id === action.targetId) : null;
+    const contact = gatherTarget ? (action.progress - .27) / .23 : -1, soil = gatherTarget ? (action.progress - .36) / .24 : -1;
+    gatherDust.visible = contact > 0 && contact < 1;
+    gatherSoil.visible = soil > 0 && soil < 1;
+    if (gatherTarget) {
+      const x = hana.position.x + GATHER_HAND * SCREEN_RIGHT[0] + .1, z = hana.position.z + GATHER_HAND * SCREEN_RIGHT[1] + .1;
+      // Lifted clear of the bed's front plank.
+      gatherDust.position.set(x, .1, z);
+      gatherDust.material.opacity = Math.sin(contact * Math.PI) * .8;
+      gatherDust.scale.set(.95 * (.7 + contact * .5), .48 * (.7 + contact * .5), 1);
+      gatherSoil.position.set(x, .08 + (reducedMotion.matches ? .08 : Math.sin(soil * Math.PI) * .22), z + .05);
+      gatherSoil.material.opacity = reducedMotion.matches ? .9 : Math.sin(soil * Math.PI) * .95;
+    }
+    // The potato settles into the basket over the pose's last frames.
+    if (resetPerformance) landingAge = 1;
+    if (gatherTarget && action.progress >= .84) landingAge = (action.progress - .84) * action.duration;
+    else if (landingAge < 1) landingAge += Math.max(0, dt);
+    basketLanding.visible = !indoors && (gatherTarget ? action.progress >= .84 : landingAge < .3);
+    if (basketLanding.visible) {
+      basketLanding.position.set(hana.position.x + BASKET_RIM[0] * SCREEN_RIGHT[0] + .05, BASKET_RIM[1], hana.position.z + BASKET_RIM[0] * SCREEN_RIGHT[1] + .05);
+      const pulse = reducedMotion.matches ? 1 : Math.sin(Math.min(1, landingAge / .3) * Math.PI);
+      basketLanding.material.opacity = reducedMotion.matches ? .85 : pulse;
+      basketLanding.scale.set(.2 + pulse * .2, .2 + pulse * .2, 1);
+    }
+    // Answered animals look in through the back windows at supper. In the dance, any
+    // that would overlap the video stay hidden.
+    for (const { id, slot, peek } of windowPeeks) {
+      peek.visible = won && (game.talked || []).includes(id) && !(dancing && overlapsProjector(slot));
+      if (peek.visible) peek.position.y = slot.y + slot.size / 2 + (reducedMotion.matches ? 0 : Math.sin(motionTime * 1.3 + slot.x) * .025);
+    }
+    supperSteam.forEach((vapor, i) => {
+      vapor.visible = won;
+      const cycle = reducedMotion.matches ? .4 : (motionTime * .45 + i * .5) % 1;
+      vapor.position.y = 1.72 + cycle * .55;
+      vapor.material.opacity = reducedMotion.matches ? .2 : Math.sin(cycle * Math.PI) * .28;
+    });
+    stoveGlow.material.opacity = houseStep >= 3 || won ? .3 : .14;
+    // The embroidery frame opens from the blouse, holds, then fades once to the final still.
+    const frameOpen = THREE.MathUtils.smoothstep(transformation, .1, .55), frameFade = 1 - THREE.MathUtils.smoothstep(transformation, .68, .98);
+    for (const { piece, angle, size } of embroideryFrame) {
+      piece.visible = goddess && frameOpen > 0 && frameFade > 0;
+      if (!piece.visible) continue;
+      const radius = .35 + frameOpen * 1.55, across = Math.cos(angle) * radius;
+      piece.position.set(player.x + across * SCREEN_RIGHT[0], 1.75 + lift + Math.sin(angle) * radius * 1.12, player.z + across * SCREEN_RIGHT[1]);
+      piece.material.opacity = Math.min(1, frameOpen * 1.6) * frameFade * .92;
+      piece.scale.set(size * (.55 + frameOpen * .45), size * (.55 + frameOpen * .45), 1);
+    }
+    // The meadow's ridge fades in north of the meadow line, fixed to the top fifth of the view.
+    const north = !indoors && !intro && musicZoneAt(player) === 'growth';
+    ridgeOpacity = reducedMotion.matches || changedScene ? Number(north) : THREE.MathUtils.clamp(ridgeOpacity + (north ? 1 : -1) * Math.max(0, dt) / 1.2, 0, 1);
+    ridge.visible = ridgeOpacity > .001;
+    if (ridge.visible) {
+      const forward = camera.position.y * Math.cos(CAMERA_PITCH - RIDGE_ANGLE) / Math.sin(RIDGE_ANGLE);
+      const halfView = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      const bottom = forward * Math.tan(CAMERA_PITCH - RIDGE_ANGLE), top = forward * halfView * 1.03, halfWidth = forward * halfView * camera.aspect * 1.03;
+      ridge.position.set(0, (bottom + top) / 2, -forward);
+      ridge.scale.set(halfWidth * 2, top - bottom, 1);
+      // Wide views stretch the painting a little. Narrow ones crop around Sněžka.
+      const span = Math.min(1, halfWidth * 2 / (top - bottom) / 6);
+      ridgeMap.repeat.x = span; ridgeMap.offset.x = THREE.MathUtils.clamp(RIDGE_PEAK - span / 2, 0, 1 - span);
+      ridgeMaterial.opacity = ridgeOpacity;
+      ridgeMaterial.depthWrite = ridgeOpacity > .5;
+    }
+    for (const hill of farHills) {
+      hill.visible = ridgeOpacity < .999;
+      hill.material.opacity = 1 - ridgeOpacity;
+      hill.material.depthWrite = ridgeOpacity < .5;
     }
     // Each sprite pivots at its existing bottom center, leaving feet and roots fixed.
     for (const target of windSprites) {
@@ -1043,7 +1415,8 @@ export function createWorld(container) {
   }
 
   function dispose() {
-    familyFinale.dispose();
+    disposed = true;
+    familyFinale.dispose(); atlas.dispose(); ridgeMap.dispose();
     firBark.dispose(); birchBark.dispose(); tearMap.dispose();
     jarMaps.flat().forEach(map => map.dispose());
     geometries.forEach(geometry => geometry.dispose()); materials.forEach(mat => mat.dispose());

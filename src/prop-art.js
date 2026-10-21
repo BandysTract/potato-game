@@ -22,6 +22,7 @@ export const PROP_CELLS = {
   drip: [1536, 1536, 256, 256], wetGlint: [1792, 1536, 256, 256],
   emStar: [0, 1792, 256, 256], emBranch: [256, 1792, 256, 256], emFlower: [512, 1792, 256, 256],
   peekFox: [768, 1792, 256, 256], peekOwl: [1024, 1792, 256, 256], peekDeer: [1280, 1792, 256, 256], peekBadger: [1536, 1792, 256, 256],
+  hare: [1792, 1792, 256, 256],
 };
 
 function ellipse(c, x, y, rx, ry, color, rotation = 0) {
@@ -398,11 +399,28 @@ const PAINTERS = {
     line(c, [[10, 26], [10, -50]], '#6d5a2c', 7); path(c, 'M10 -50 Q40 -36 42 -10', null, '#6d5a2c', 7);
     c.restore();
   },
+  hare: c => {
+    // A meadow hare sitting up, facing left, ready to sing back.
+    ellipse(c, 128, 228, 92, 16, '#2e4c3a40');
+    path(c, 'M112 104 Q92 34 104 14 Q118 24 124 100Z', gradient(c, 100, 14, 124, 104, ['#3f3326', '#9c7f5c']), '#3c2c1d', 2.5);
+    path(c, 'M128 102 Q124 30 142 16 Q152 32 140 104Z', gradient(c, 128, 16, 150, 104, ['#3f3326', '#a88a63']), '#3c2c1d', 2.5);
+    path(c, 'M134 30 Q144 24 142 92 Q136 92 134 30Z', '#e7c9b0', null);
+    path(c, 'M104 148 Q96 104 130 96 Q176 92 196 132 Q214 176 196 210 Q170 228 126 222 Q96 214 104 148Z', gradient(c, 100, 96, 210, 226, ['#b8976b', '#9a7a54', '#6f5639']), '#3c2c1d', 2.5);
+    ellipse(c, 176, 184, 34, 30, '#8f6f4b');
+    ellipse(c, 212, 176, 15, 13, '#f2ead8');
+    path(c, 'M110 168 Q116 200 138 214 Q148 196 140 170 Q126 158 110 168Z', '#ead9b9', null);
+    for (const x of [112, 132]) ellipse(c, x, 216, 13, 7, '#d9c4a0');
+    ellipse(c, 112, 120, 38, 31, '#a5855e');
+    ellipse(c, 84, 132, 15, 12, '#c9ad85');
+    ellipse(c, 100, 112, 7, 7, '#1f1a16'); ellipse(c, 102, 110, 2.2, 2.2, '#ffffff');
+    ellipse(c, 74, 128, 4.5, 3.5, '#7a4e3c');
+    for (const dy of [-4, 3]) line(c, [[78, 134 + dy], [54, 130 + dy * 2]], '#f6efe0b0', 1.5);
+  },
   birdPerched: c => bird(c, false),
   birdSinging: c => bird(c, true),
   noteClean: c => note(c, false),
   noteWobbly: c => note(c, true),
-  dustPuff: c => { for (const [x, y, r] of [[96, 84, 44], [150, 76, 38], [126, 64, 30]]) ellipse(c, x, y, r, r * .7, radial(c, x, y, r, ['#8c7350a0', '#8c735040', '#8c735000'])); },
+  dustPuff: c => { for (const [x, y, r] of [[96, 84, 44], [150, 76, 38], [126, 64, 30]]) ellipse(c, x, y, r, r * .7, radial(c, x, y, r, ['#eadfc2d0', '#e3d6b070', '#e3d6b000'])); },
   soilCrumbs: c => { for (const [x, y, r] of [[70, 90, 9], [96, 80, 7], [124, 94, 10], [150, 82, 6], [176, 92, 8], [110, 70, 5], [140, 66, 6]]) ellipse(c, x, y, r, r * .8, '#5a4128'); },
   reflectionBloom: c => {
     ellipse(c, 128, 128, 120, 60, radial(c, 128, 128, 120, ['#f6fbf2c0', '#dcefe880', '#dcefe800']));
@@ -569,6 +587,10 @@ export function createRidgeTexture() {
   for (let x = 0; x < 2048; x += 9) shape(c, [[x - 7, 420], [x, 384 - Math.abs(Math.sin(x * 2.1)) * 26], [x + 7, 420]], '#4f6d55');
   // Haze softens the far ridge into the distance.
   c.fillStyle = gradient(c, 0, 0, 0, 512, ['#ffffff00', '#f4f6f018', '#f4f6f030', '#ffffff00']); c.fillRect(0, 0, 2048, 512);
+  // The painted meadow at the foot fades out, so the real ground meets the forest edge softly.
+  c.globalCompositeOperation = 'destination-out';
+  c.fillStyle = gradient(c, 0, 432, 0, 512, ['#00000000', '#000000ff']); c.fillRect(0, 432, 2048, 80);
+  c.globalCompositeOperation = 'source-over';
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = THREE.MirroredRepeatWrapping;

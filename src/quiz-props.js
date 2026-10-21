@@ -83,11 +83,13 @@ export const QUIZ_PROPS = {
 };
 
 // Which quiz props belong on screen now. Props exist only inside their own encounter.
-export function quizPropState(game) {
+// A renderer passes its own state object so ordinary frames allocate nothing.
+export function quizPropState(game, out = {}) {
   const session = game?.quizSession;
   if (!game || game.scene !== 'outdoors' || !game.conversation || !session?.quizId) return null;
   if (!QUIZ_PROPS[session.quizId] || !session.quizId.startsWith(`${game.conversation}-`)) return null;
-  return { animalId: game.conversation, quizId: session.quizId, answered: session.answerId !== null && session.answerId !== undefined };
+  out.animalId = game.conversation; out.quizId = session.quizId; out.answered = session.answerId !== null && session.answerId !== undefined;
+  return out;
 }
 
 export function partVisible(part, answered) {

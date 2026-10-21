@@ -43,7 +43,7 @@ Choose “Scene select” on the title screen, pause menu, or either ending, or 
 
 ## Family dance
 
-John lowers the screen before Karel Gott’s [1984 live performance of “Mám styl Čendy” (“I’m Still Standing”)](https://www.youtube.com/watch?v=DrQMROGD-EE) starts. Hana and John sway and step, Aldo waves and kicks from his cot, and Percy prances. The family’s dance follows actual video playback and pauses with it. Game music stops during the finale. Sound, language, replay, scene selection, and a new walk remain available.
+John lowers the screen before Karel Gott’s [live performance of “Mám styl Čendy” (“I’m Still Standing”)](https://www.youtube.com/watch?v=usk0WKKoHOk) starts. Hana and John sway and step, Aldo waves and kicks from his cot, and Percy prances. The family’s dance follows actual video playback and pauses with it. Game music stops during the finale. Sound, language, replay, scene selection, and a new walk remain available.
 
 The video uses YouTube’s embedded player and isn’t downloaded or included in the repository. The player loads only during the dance ending. Browser autoplay rules may require pressing “Play video.” If YouTube is unavailable or embedding is blocked, the game offers a retry and a link to the performance. Leaving the ending destroys its player. Reduced motion affects the game’s animation, not the recorded performance.
 

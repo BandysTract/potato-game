@@ -129,7 +129,7 @@ test('the video loads only for the dance ending after the projector is visible a
     assert.equal(app.find('[data-finale-status]').textContent, 'Loading the video…');
     await app.resolveAPI();
     assert.equal(app.players.length, 1);
-    assert.equal(app.players[0].options.videoId, 'DrQMROGD-EE');
+    assert.equal(app.players[0].options.videoId, 'usk0WKKoHOk');
     assert.equal(app.players[0].options.host, 'https://www.youtube-nocookie.com');
     assert.equal(app.players[0].options.playerVars.autoplay, 0);
   } finally { app.controller.dispose(); }
@@ -298,7 +298,7 @@ test('video errors show a retry and YouTube fallback without starting an automat
     assert.match(app.find('[data-finale-status]').textContent, /unavailable.*try again.*YouTube/);
     assert.equal(app.find('[data-finale-play]').textContent, 'Try again');
     assert.equal(app.find('[data-finale-play]').disabled, false);
-    assert.equal(app.find('[data-finale-link]').attributes.href, 'https://www.youtube.com/watch?v=DrQMROGD-EE');
+    assert.equal(app.find('[data-finale-link]').attributes.href, 'https://www.youtube.com/watch?v=usk0WKKoHOk');
     for (let frame = 0; frame < 3; frame++) app.update();
     await Promise.resolve();
     assert.equal(app.players.length, 1, 'Frame updates must keep the error visible until an explicit retry.');

@@ -1,6 +1,6 @@
 import './finale.css';
 
-export const FINALE_VIDEO_ID = 'DrQMROGD-EE';
+export const FINALE_VIDEO_ID = 'usk0WKKoHOk';
 let apiPromise;
 
 function youtubeAPI() {
